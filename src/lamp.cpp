@@ -86,9 +86,9 @@ void LAMP::lamp_init()
   touch.setDebounce(BUTTON_DEBOUNCE);   // т.к. работаем с прерываниями, может пригодиться для железной кнопки
   //touch.setTickMode(true);
 
-  //_buttonTicker.set(1000, TASK_FOREVER, std::bind(&LAMP::buttonTick, this));    // "ленивый" опрос 1 раз в сек
-  //ts.addTask(_buttonTicker);
-  //_buttonTicker.enable();
+  _buttonTicker.set(1000, TASK_FOREVER, std::bind(&LAMP::buttonTick, this));    // "ленивый" опрос 1 раз в сек
+  ts.addTask(_buttonTicker);
+  _buttonTicker.enable();
 #endif
 
 #ifdef VERTGAUGE
@@ -1320,10 +1320,10 @@ void LAMP::fader(const uint8_t _tgtbrt, std::function<void(void)> callback){
  */
 #ifdef ESP_USE_BUTTON
 void LAMP::buttonPress(bool state){
-  ts.deleteTask(_buttonTicker);
+
   if (!buttonEnabled)   // события кнопки не обрабатываются, если она заблокирована
   {
-    //_buttonTicker.disable();
+    _buttonTicker.disable();
     return;
   }
 
@@ -1338,7 +1338,6 @@ void LAMP::buttonPress(bool state){
 #endif
     _buttonTicker.set(TASK_SECOND, TASK_FOREVER, std::bind(&LAMP::buttonTick, this));    // если планировщик активен, значит кнопку "отпустили", переходим на "ленивый" опрос
   }
-  ts.addTask(_buttonTicker);
   _buttonTicker.enable();
 }
 #endif
