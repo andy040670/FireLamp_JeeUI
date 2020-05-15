@@ -138,7 +138,7 @@ void sendData(){
  */
 ICACHE_RAM_ATTR void buttonpinisr(){
   detachInterrupt(BTN_PIN);
-  _isrHelper.once_ms(0, buttonhelper, pinTransition);   // вместо флага используем тикер :)
+  _isrHelper.once_ms(0, buttonhelper, iGLOBAL.pinTransition);   // вместо флага используем тикер :)
   iGLOBAL.pinTransition = !iGLOBAL.pinTransition;
   attachInterrupt(digitalPinToInterrupt(BTN_PIN), buttonpinisr, iGLOBAL.pinTransition ? BUTTON_PRESS_TRANSITION : BUTTON_RELEASE_TRANSITION);  // меням прерывание
 }

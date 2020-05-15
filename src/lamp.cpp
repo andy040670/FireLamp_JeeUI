@@ -1219,7 +1219,7 @@ void LAMP::fadelight(const uint8_t _targetbrightness, const uint32_t _duration, 
 
     if (_steps < 3) {
         brightness(_targetbrightness);
-        if (callback != nullptr) _fadeTicker.once_ms_scheduled(0, callback);
+        if (callback != nullptr) _fadeTicker.set(TASK_IMMEDIATE, TASK_ONCE, callback);
         return;
     }
 
