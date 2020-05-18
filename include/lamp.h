@@ -73,6 +73,14 @@ typedef enum _EFFSWITCH {
     SW_SPECIFIC     // переход на конкретный эффект по индексу/имени
 } EFFSWITCH;
 
+// управление Тикером
+typedef enum _SCHEDULER {
+    T_DISABLE = 0,    // Выкл
+    T_ENABLE,         // Вкл
+    T_RESET,          // сброс
+} SCHEDULER;
+
+
 struct EVENT {
     union {
         struct {
@@ -439,7 +447,6 @@ private:
 
     DynamicJsonDocument docArrMessages; // массив сообщений для вывода на лампу
 
-    timerMinim tmDemoTimer;         // смена эффекта в демо режиме по дабл-клику из выключенного состояния, таймаут N секунд
     timerMinim tmConfigSaveTime;    // таймер для автосохранения
     timerMinim tmNumHoldTimer;      // таймаут удержания кнопки в мс
     timerMinim tmStringStepTime;    // шаг смещения строки, в мс
@@ -454,6 +461,7 @@ private:
 
     Scheduler ts;                   // TaskScheduler
     Task _fadeTicker;               // планировщик асинхронного фейдера
+    Task _demoTicker;               // планировщик Смены эффектов в ДЕМО
 
 #ifdef ESP_USE_BUTTON
     GButton touch;               
@@ -482,6 +490,11 @@ private:
     uint8_t getFont(uint8_t asciiCode, uint8_t row);
 
     void alarmWorker();
+
+    /*
+     * Смена эффекта в демо по таймеру
+     */
+    void demoNext() { RANDOM_DEMO ? switcheffect(SW_RND, isFaderON) : switcheffect(SW_NEXT, isFaderON);}
 
 public:
     EffectWorker effects; // объект реализующий доступ к эффектам
@@ -521,7 +534,12 @@ public:
     void setIsGlobalBrightness(bool val) {isGlobalBrightness = val;}
     bool IsGlobalBrightness() {return isGlobalBrightness;}
 
-    void restartDemoTimer() {tmDemoTimer.reset();}
+    /*
+     * включает/выключает "демо"-таймер, возвращает установленный статус
+     * @param TICKER action - enable/disable/reset
+     */
+    void demoTimer(SCHEDULER action);
+
     LAMPMODE getMode() {return mode;}
     void updateParm(void(*f)()) { updateParmFunc=f; }
 
