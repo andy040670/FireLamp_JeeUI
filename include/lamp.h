@@ -176,7 +176,7 @@ struct EVENT {
         uint8_t t_raw_data = raw_data>>1;
         for(uint8_t i=1;i<8; i++){
             if(t_raw_data&1){
-                //Serial.println(day_buf.substring((i-1)*2*2,i*2*2)); // по 2 байта на символ UTF16
+                //Serial.println, day_buf.substring((i-1)*2*2,i*2*2)); // по 2 байта на символ UTF16
                 buffer.concat(day_buf.substring((i-1)*2*2,i*2*2)); // по 2 байта на символ UTF16
                 buffer.concat(F(","));
             }
@@ -204,7 +204,7 @@ private:
         if(!event->isEnabled) return;
         time_t eventtime = event->unixtime;// + offset;
 
-        //LOG.printf_P(PSTR("%d %d\n"),current_time, eventtime);
+        //LOG(printf_P, PSTR("%d %d\n"),current_time, eventtime);
         if(eventtime>current_time) return;
 
         if(eventtime==current_time) // точно попадает в период времени 1 минута, для однократных событий
@@ -215,7 +215,7 @@ private:
 
         // если сегодня + периодический
         if(event->repeat && eventtime<=current_time && year(eventtime)==year(current_time) && month(eventtime)==month(current_time) && day(eventtime)==day(current_time)){
-            //LOG.printf_P(PSTR("%d %d\n"),hour(current_time)*60+minute(current_time), event->repeat);
+            //LOG(printf_P, PSTR("%d %d\n"),hour(current_time)*60+minute(current_time), event->repeat);
             if(!(((hour(current_time)*60+minute(current_time))-(hour(eventtime)*60+minute(eventtime)))%event->repeat)){
                 if(((hour(current_time)*60+minute(current_time))<(hour(eventtime)*60+minute(eventtime)+event->stopat)) || !event->stopat){ // еще не вышли за ограничения окончания события или его нет
                     if(cb_func!=nullptr) cb_func(event); // сработало событие
@@ -229,7 +229,7 @@ private:
 
         if((event->raw_data>>cur_day)&1) { // обрабатывать сегодня
             if(eventtime<=current_time){ // время события было раньше/равно текущего
-                //LOG.printf_P(PSTR("%d %d\n"),hour(current_time)*60+minute(current_time), event->repeat);
+                //LOG(printf_P, PSTR("%d %d\n"),hour(current_time)*60+minute(current_time), event->repeat);
                 if(hour(eventtime)==hour(current_time) && minute(eventtime)==minute(current_time)){ // точное совпадение
                     if(cb_func!=nullptr) cb_func(event); // сработало событие
                     return;
@@ -316,25 +316,19 @@ public:
             String cfg_str = configFile.readString();
 
             if (cfg_str == F("")){
-#ifdef LAMP_DEBUG
-                LOG.println(F("Failed to open events config file"));
-#endif
+                LOG(println, F("Failed to open events config file"));
                 saveConfig();
                 return;
             }
 
-#ifdef LAMP_DEBUG
-                LOG.println(F("\nStart desialization of events\n\n"));
-#endif
+            LOG(println, F("\nStart desialization of events\n\n"));
 
             DynamicJsonDocument doc(8192);
             DeserializationError error = deserializeJson(doc, cfg_str);
             if (error) {
-#ifdef LAMP_DEBUG
-                LOG.print(F("deserializeJson error: "));
-                LOG.println(error.code());
-                LOG.println(cfg_str);
-#endif
+                LOG(print, F("deserializeJson error: "));
+                LOG(println, error.code());
+                LOG(println, cfg_str);
                 return;
             }
 
@@ -350,17 +344,13 @@ public:
                 String tmpStr = item[F("msg")].as<String>();
                 event.message = (char *)tmpStr.c_str();
                 addEvent(event);
-#ifdef LAMP_DEBUG
-                LOG.printf_P(PSTR("[%u - %u - %u - %u - %u - %s]\n"), event.raw_data, event.unixtime, event.event, event.repeat, event.stopat, event.message);
-#endif
+                LOG(printf_P, PSTR("[%u - %u - %u - %u - %u - %s]\n"), event.raw_data, event.unixtime, event.event, event.repeat, event.stopat, event.message);
             }
             // JsonArray::iterator it;
             // for (it=arr.begin(); it!=arr.end(); ++it) {
             //     const JsonObject& elem = *it;
             // }
-#ifdef LAMP_DEBUG
-            LOG.println(F("Events config loaded"));
-#endif
+            LOG(println, F("Events config loaded"));
             doc.clear();
         }
     }
@@ -380,18 +370,16 @@ public:
                 configFile.printf_P(PSTR("%s{\"raw\":%u,\"ut\":%u,\"ev\":%u,\"rp\":%u,\"sa\":%u,\"msg\":\"%s\"}"),
                     (char*)(i>1?F(","):F("")), next->raw_data, next->unixtime, next->event, next->repeat, next->stopat,
                     ((next->message!=nullptr)?next->message:(char*)F("")));
-#ifdef LAMP_DEBUG
-                LOG.printf_P(PSTR("%s{\"raw\":%u,\"ut\":%u,\"ev\":%u,\"rp\":%u,\"sa\":%u,\"msg\":\"%s\"}"),
+                LOG(printf_P, PSTR("%s{\"raw\":%u,\"ut\":%u,\"ev\":%u,\"rp\":%u,\"sa\":%u,\"msg\":\"%s\"}"),
                     (char*)(i>1?F(","):F("")), next->raw_data, next->unixtime, next->event, next->repeat, next->stopat,
                     ((next->message!=nullptr)?next->message:(char*)F("")));
-#endif
                 i++;
                 next=next->next;
             }     
             configFile.print("]");
             configFile.flush();
             configFile.close();
-            LOG.println(F("\nSave events config"));
+            LOG(println, F("\nSave events config"));
         }
     }
 };
