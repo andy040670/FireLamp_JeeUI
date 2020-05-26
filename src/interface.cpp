@@ -761,6 +761,25 @@ void update(){ // функция выполняется после ввода д
     bool isGlobalBrightness = jee.param(F("isGLBbr"))==F("true");
     myLamp.setIsGlobalBrightness(isGlobalBrightness);
     myLamp.setFaderFlag(jee.param(F("isFaderON"))==F("true"));
+    myLamp.setTextMovingSpeed(jee.param(F("txtSpeed")).toInt());
+    myLamp.setTextOffset(jee.param(F("txtOf")).toInt());
+    myLamp.setPeriodicTimePrint((PERIODICTIME)jee.param(F("perTime")).toInt());
+    myLamp.setMIRR_H(jee.param(F("MIRR_H"))==F("true"));
+    myLamp.setMIRR_V(jee.param(F("MIRR_V"))==F("true"));
+    //myLamp.setOnOff(jee.param(F("ONflag"))==F("true")); // эта часть перенесена выше
+    //myLamp.setFaderFlag(jee.param(F("isFaderON"))==F("true"));
+#ifdef ESP_USE_BUTTON
+    myLamp.setButtonOn(jee.param(F("isBtnOn"))==F("true"));
+#endif
+    myLamp.timeProcessor.SetOffset(jee.param(F("tm_offs")).toInt());
+    myLamp.setNYUnixTime(jee.param(F("ny_unix")).toInt());
+    myLamp.setNYMessageTimer(jee.param(F("ny_period")).toInt());
+# ifdef MIC_EFFECTS
+    myLamp.setMicScale(jee.param(F("micScale")).toFloat());
+    myLamp.setMicNoise(jee.param(F("micNoise")).toFloat());
+    myLamp.setMicNoiseRdcLevel((MIC_NOISE_REDUCE_LEVEL)jee.param(F("micnRdcLvl")).toInt());
+    myLamp.setMicOnOff(jee.param(F("isMicON"))==F("true"));
+#endif
 
     // сперва обрабатываем "включатель"
     bool newpower = jee.param(F("ONflag"))==F("true");
@@ -772,8 +791,6 @@ void update(){ // функция выполняется после ввода д
         isRefresh = true;
         return;                 // если менялся "выключатель" то остальное даже не смотрим
     }
-
-    //if (!myLamp.isLampOn()) return;      // Модифицировать настройки можно и при выключенной лампе, как из UI, так и из других источников (исключение - кнопка, т.к. не видно, что меняется, так что обрабатываются только перечисленные действия)
 
     if(iGLOBAL.isEdEvent!=(jee.param(F("isEdEvent"))==F("true"))){
         iGLOBAL.isEdEvent = !iGLOBAL.isEdEvent;
@@ -805,14 +822,19 @@ void update(){ // функция выполняется после ввода д
     if(curEff->eff_nb!=EFF_NONE){ // для служебного "пустого" эффекта EFF_NONE вообще ничего не делаем
         //LOG(printf_P, PSTR("curEff: %p iGLOBAL.prevEffect: %p\n"), curEff, iGLOBAL.prevEffect);
         if(curEff!=iGLOBAL.prevEffect && iGLOBAL.prevEffect!=nullptr){ // Если эффект поменялся или требуется обновление UI, при этом не первый вход в процедуру после перезагрузки
-            myLamp.switcheffect(SW_SPECIFIC, myLamp.getFaderFlag(), curEff->eff_nb);
+            if(myLamp.isLampOn())
+                myLamp.switcheffect(SW_SPECIFIC, myLamp.getFaderFlag(), curEff->eff_nb);
+            else {
+                myLamp.effects.moveBy(curEff->eff_nb); // если лампа выключена, то переключаем втихую :)
+                setEffectParams(curEff);
+            }
             isRefresh = true; // рефрешим UI если поменялся эффект, иначе все ползунки будут неправильными
-        } else { // эффект не менялся, либо обновление UI не требуется, либо первый вход - обновляем текущий эффект значениями из UI
+        } else { // эффект не менялся, либо MQTT, либо первый вход - обновляем текущий эффект значениями из UI/MQTT
             curEff->isFavorite = (jee.param(F("isFavorite"))==F("true"));
             curEff->canBeSelected = (jee.param(F("canBeSelected"))==F("true"));
             myLamp.setLampBrightness(jee.param(F("bright")).toInt());
             if(myLamp.isLampOn()) // только если включена, поскольку этот вызов при перезагрузке зажжет лампу, даже если она выключена в конфиге
-                myLamp.setBrightness(jee.param(F("bright")).toInt(), myLamp.getFaderFlag());    // два вызова выглядят коряво, но встраивать setBrightness в setLampBrightness нельзя, т.к. это корежит фэйдер и отложенную смену эфектов, можно попробовать наоборот сделать setBrightness будет менять яркость в конфиге эффекта
+                myLamp.setBrightness(myLamp.getNormalizedLampBrightness(), myLamp.getFaderFlag());    // два вызова выглядят коряво, но встраивать setBrightness в setLampBrightness нельзя, т.к. это корежит фэйдер и отложенную смену эфектов, можно попробовать наоборот сделать setBrightness будет менять яркость в конфиге эффекта
             curEff->speed = jee.param(F("speed")).toInt();
             curEff->scale = jee.param(F("scale")).toInt();
 
@@ -843,39 +865,13 @@ void update(){ // функция выполняется после ввода д
         }
     }
 
-    iGLOBAL.prevEffect = curEff;
-
-    myLamp.setTextMovingSpeed(jee.param(F("txtSpeed")).toInt());
-    myLamp.setTextOffset(jee.param(F("txtOf")).toInt());
-    myLamp.setPeriodicTimePrint((PERIODICTIME)jee.param(F("perTime")).toInt());
-
-    myLamp.setMIRR_H(jee.param(F("MIRR_H"))==F("true"));
-    myLamp.setMIRR_V(jee.param(F("MIRR_V"))==F("true"));
-    myLamp.setOnOff(jee.param(F("ONflag"))==F("true"));
-    myLamp.setFaderFlag(jee.param(F("isFaderON"))==F("true"));
-
-#ifdef ESP_USE_BUTTON
-    myLamp.setButtonOn(jee.param(F("isBtnOn"))==F("true"));
-#endif
-
-    myLamp.timeProcessor.SetOffset(jee.param(F("tm_offs")).toInt());
-    myLamp.setNYUnixTime(jee.param(F("ny_unix")).toInt());
-    myLamp.setNYMessageTimer(jee.param(F("ny_period")).toInt());
-
-# ifdef MIC_EFFECTS
-    myLamp.setMicScale(jee.param(F("micScale")).toFloat());
-    myLamp.setMicNoise(jee.param(F("micNoise")).toFloat());
-    myLamp.setMicNoiseRdcLevel((MIC_NOISE_REDUCE_LEVEL)jee.param(F("micnRdcLvl")).toInt());
-    myLamp.setMicOnOff(jee.param(F("isMicON"))==F("true"));
-#endif
-
-
     if(myLamp.getMode() == MODE_DEMO || isGlobalBrightness)
         jee.var(F("GlobBRI"), String(myLamp.getLampBrightness()));
     myLamp.timeProcessor.setIsSyncOnline(jee.param(F("isTmSync"))==F("true"));
     //jee.param(F("effList"))=String(0);
     jee.var(F("pTime"),myLamp.timeProcessor.getFormattedShortTime()); // обновить опубликованное значение
 
+    iGLOBAL.prevEffect = curEff;
     jee.setDelayedSave(30000); // отложенное сохранение конфига, раз в 30 секунд относительно последнего изменения
 
 #ifdef MIC_EFFECTS
@@ -887,11 +883,6 @@ void update(){ // функция выполняется после ввода д
 
 void setEffectParams(EFFECT *curEff)
 {
-    if(curEff==nullptr){
-        LOG(println, F("!!! Обнаружена передача нулевого указалетя эффекта !!!")); // ловим подлый баг :)
-        return;
-    }
-    
     jee.var(F("isFavorite"), (curEff->isFavorite?F("true"):F("false")));
     jee.var(F("canBeSelected"), (curEff->canBeSelected?F("true"):F("false")));
     jee.var(F("bright"),String(myLamp.getLampBrightness()));
@@ -918,8 +909,10 @@ void setEffectParams(EFFECT *curEff)
     myLamp.setLoading(); // обновить эффект
     iGLOBAL.prevEffect = curEff; // обновить указатель на предыдущий эффект
 
-    if(myLamp.getMode()==LAMPMODE::MODE_DEMO)
+    if(myLamp.getMode()==LAMPMODE::MODE_DEMO){
+        jee.deb(); // с какого-то хрена через время ломается json и все параметры обнавляемые здесь превращаются в null, после чего MQTT срывает крышу... значит будем шаманить с бубном
         jee._refresh = true; // форсировать перерисовку интерфейсов клиентов
+    }
 }
 
 void updateParm() // передача параметров в UI после нажатия сенсорной или мех. кнопки

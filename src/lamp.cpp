@@ -359,6 +359,7 @@ if(touch.isHold() || !touch.isHolded())
         manualOff = true;
         dawnFlag = false;
         setBrightness(getNormalizedLampBrightness(),false, false); // восстановить яркость
+        mode = (storedMode!=LAMPMODE::MODE_ALARMCLOCK?storedMode:LAMPMODE::MODE_NORMAL); // возвращаем предыдущий режим
         if(updateParmFunc!=nullptr) updateParmFunc(); // обновить параметры UI
         return;
       }
@@ -474,9 +475,10 @@ void LAMP::alarmWorker() // обработчик будильника "расс�
       {
         dawnFlag = false;
         manualOff = false;
-         if(!ONflag){
+        if(!ONflag){
           FastLED.clear();
           FastLED.show();
+        }
       }
       // #if defined(ALARM_PIN) && defined(ALARM_LEVEL)                    // установка сигнала в пин, управляющий будильником
       // digitalWrite(ALARM_PIN, !ALARM_LEVEL);
@@ -544,13 +546,6 @@ void LAMP::alarmWorker() // обработчик будильника "расс�
 
 void LAMP::effectsTick()
 {
-  /*
-   * Здесь имеет место странная специфика тикера,
-   * если где-то в коде сделали детач, но таймер уже успел к тому времени "выстрелить"
-   * функция все равно будет запущена в loop(), она просто ждет своей очереди
-   */
-  if (!_effectsTicker.active() ) return;
-
   uint32_t _begin = millis();
   if(dawnFlag){
     doPrintStringToLamp(); // обработчик печати строки
@@ -610,7 +605,9 @@ void LAMP::frameShow(const uint32_t ticktime){
   if (delay < LED_SHOW_DELAY) delay = LED_SHOW_DELAY;
   _effectsTicker.set(delay, TASK_ONCE, std::bind(&LAMP::effectsTick, this));
   _effectsTicker.enableDelayed();
+#ifdef LAMP_DEBUG
   ++fps;
+#endif
 }
 
 
@@ -815,45 +812,6 @@ void LAMP::changePower(bool flag) // флаг включения/выключе�
       }
     }
 
-// ------------- мигающий цвет (не эффект! используется для отображения краткосрочного предупреждения; блокирующий код!) -------------
-void LAMP::showWarning(
-  CRGB::HTMLColorCode color,                                               /* цвет вспышки                                                 */
-  uint32_t duration,                                        /* продолжительность отображения предупреждения (общее время)   */
-  uint16_t blinkHalfPeriod)                                 /* продолжительность одной вспышки в миллисекундах (полупериод) */
-{
-  uint32_t blinkTimer = millis();
-  enum BlinkState { OFF = 0, ON = 1 } blinkState = BlinkState::OFF;
-  myLamp.fadelight(myLamp.getLampBrightness());    // установка яркости для предупреждения
-  FastLED.clear();
-  delay(2);
-  FastLED.show();
-
-  for (uint16_t i = 0U; i < NUM_LEDS; i++)                  // установка цвета всех диодов в WARNING_COLOR
-  {
-    myLamp.setLeds(i, color);
-  }
-
-  uint32_t startTime = millis();
-  while (millis() - startTime <= (duration + 5))            // блокировка дальнейшего выполнения циклом на время отображения предупреждения
-  {
-    if (millis() - blinkTimer >= blinkHalfPeriod)           // переключение вспышка/темнота
-    {
-      blinkTimer = millis();
-      blinkState = (BlinkState)!blinkState;
-      myLamp.brightness(blinkState == BlinkState::OFF ? 0 : myLamp.getLampBrightness());
-      delay(1);
-      FastLED.show();
-    }
-    delay(50);
-  }
-
-  FastLED.clear();
-  myLamp.fadelight(myLamp.isLampOn() ? myLamp.getLampBrightness() : 0);  // установка яркости, которая была выставлена до вызова предупреждения
-  delay(1);
-  FastLED.show();
-  myLamp.setLoading();                                       // принудительное отображение текущего эффекта (того, что был активен перед предупреждением)
-}
-
 void LAMP::startAlarm()
 {
   storedMode = ((mode == LAMPMODE::MODE_ALARMCLOCK ) ? storedMode: mode);
@@ -894,7 +852,7 @@ void LAMP::startOTAUpdate()
   sendStringToLamp(String(PSTR("- OTA UPDATE ON -")).c_str(), CRGB::Green);
 }
 #endif
-bool LAMP::fillStringManual(const char* text,  const CRGB &letterColor, bool stopText, bool isInverse, int8_t letSpace, int8_t txtOffset, int8_t letWidth, int8_t letHeight)
+bool LAMP::fillStringManual(const char* text,  const CRGB &letterColor, bool stopText, bool isInverse, int32_t pos, int8_t letSpace, int8_t txtOffset, int8_t letWidth, int8_t letHeight)
 {
   static int32_t offset = (MIRR_V ? 0 : WIDTH);
 
