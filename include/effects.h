@@ -96,7 +96,9 @@ EFF_COLORRAIN,                                // Цветной дождь
 EFF_STORMYRAIN,                               // Тучка в банке
 EFF_FIRE2018,                                 // Огонь 2018
 EFF_RINGS,                                    // Кодовый замок
-EFF_CUBE2                                     // Куб 2D
+EFF_CUBE2,                                    // Куб 2D
+EFF_SMOKE,                                    // Дым
+EFF_TIME = (98)                               // Часы (служебный, смещаем в конец)
 #ifdef MIC_EFFECTS
 ,EFF_FREQ = (99U)                             // Частотный анализатор (служебный, смещаем в конец)
 #endif
@@ -146,8 +148,10 @@ void stormyRainRoutine(CRGB*, const char*);
 void fire2018Routine(CRGB*, const char*);
 void ringsRoutine(CRGB*, const char*);
 void cube2dRoutine(CRGB*, const char *);
+void multipleStreamSmokeRoutine(CRGB*, const char *);
 #ifdef MIC_EFFECTS
 void freqAnalyseRoutine(CRGB*, const char*);
+void timePrintRoutine(CRGB*, const char *);
 #endif
 //-------------------------------------------------
 const char _R255[] PROGMEM = "[{'R':'127'}]";
@@ -250,6 +254,8 @@ const char T_STORMYRAIN[] PROGMEM = "Тучка в банке";
 const char T_FIRE2018[] PROGMEM = "Огонь 2018";
 const char T_RINGS[] PROGMEM = "Кодовый замок";
 const char T_CUBE2[] PROGMEM = "Куб 2D";
+const char T_TIME[] PROGMEM = "Часы";
+const char T_SMOKE[] PROGMEM = "Дым";
 
 #ifdef MIC_EFFECTS
 const char T_FREQ[] PROGMEM = "Частотный анализатор";
@@ -303,7 +309,11 @@ static EFFECT _EFFECTS_ARR[] = {
     {true, true, 127, 127, 127, EFF_STORMYRAIN, T_STORMYRAIN, stormyRainRoutine, nullptr},
     {true, true, 127, 127, 127, EFF_FIRE2018, T_FIRE2018, fire2018Routine, nullptr},
     {true, true, 127, 127, 127, EFF_RINGS, T_RINGS, ringsRoutine, nullptr},
-    {true, true, 127, 127, 127, EFF_CUBE2, T_CUBE2, cube2dRoutine, nullptr}
+    {true, true, 127, 127, 127, EFF_CUBE2, T_CUBE2, cube2dRoutine, nullptr},
+    {true, true, 127, 127, 127, EFF_SMOKE, T_SMOKE, multipleStreamSmokeRoutine, ((char *)_R255)},  // очень хреновое приведение типов, но дальше это разрулим :)
+
+
+    {true, true, 127, 127, 127, EFF_TIME, T_TIME, timePrintRoutine, nullptr}
 #ifdef MIC_EFFECTS
     ,{true, true, 127, 127, 127, EFF_FREQ, T_FREQ, freqAnalyseRoutine, nullptr}
 #endif
@@ -388,6 +398,9 @@ public:
         struct { // радужная комета
             uint8_t eNs_noisesmooth;
             uint8_t rhue;
+            uint8_t smokeHue;
+            float xSmokePos;
+            float xSmokePos2;
             uint16_t noiseX;
             uint16_t noiseY;
             uint16_t noiseZ;
@@ -457,6 +470,15 @@ public:
             uint8_t gX, gY; // глобальный X и глобальный Y нашего "кубика"
             int8_t globalShiftX, globalShiftY; // нужно ли сдвинуть всё поле по окончаии цикла и в каком из направлений (-1, 0, +1)
             uint8_t storage[WIDTH][HEIGHT];
+        };
+        struct { // time
+            bool timeShiftDir; // направление сдвига
+            float curTimePos; // текущая позиция вывода
+            CRGB hColor[1]; // цвет часов и минут
+            CRGB mColor[1]; // цвет часов и минут
+        };
+        struct { // snow
+            float snowShift; // сдвиг снега
         };
 		//uint8_t raw[1024];
 	};

@@ -418,8 +418,9 @@ private:
     byte numHold = 0; // режим удержания
     byte txtOffset = 0; // смещение текста относительно края матрицы
     byte globalBrightness = BRIGHTNESS; // глобальная яркость, пока что будет использоваться для демо-режимов
+#ifdef LAMP_DEBUG
     uint8_t fps = 0;    // fps counter
-
+#endif
     const int MODE_AMOUNT = sizeof(_EFFECTS_ARR)/sizeof(EFFECT);     // количество режимов
     const uint16_t maxDim = ((WIDTH>HEIGHT)?WIDTH:HEIGHT);
     const uint16_t minDim = ((WIDTH<HEIGHT)?WIDTH:HEIGHT);
@@ -454,6 +455,7 @@ private:
     timerMinim tmNumHoldTimer;      // таймаут удержания кнопки в мс
     timerMinim tmStringStepTime;    // шаг смещения строки, в мс
     timerMinim tmNewYearMessage;    // период вывода новогоднего сообщения
+
     time_t NEWYEAR_UNIXDATETIME=1609459200U;    // дата/время в UNIX формате, см. https://www.cy-pr.com/tools/time/ , 1609459200 => Fri, 01 Jan 2021 00:00:00 GMT
 
     // async fader and brightness control vars and methods
@@ -488,8 +490,8 @@ private:
 #endif
     static void showWarning(CRGB::HTMLColorCode color, uint32_t duration, uint16_t blinkHalfPeriod); // Блокирующая мигалка
 
-    void doPrintStringToLamp(const char* text = nullptr,  const CRGB &letterColor = CRGB::Black);
-    bool fillStringManual(const char* text,  const CRGB &letterColor, bool stopText = false, bool isInverse = false, int8_t letSpace = LET_SPACE, int8_t txtOffset = TEXT_OFFSET, int8_t letWidth = LET_WIDTH, int8_t letHeight = LET_HEIGHT);
+    void doPrintStringToLamp(const char* text = nullptr,  const CRGB &letterColor = CRGB::Black, const int8_t textOffset = -128, const int16_t fixedPos = 0);
+    bool fillStringManual(const char* text,  const CRGB &letterColor, bool stopText = false, bool isInverse = false, int32_t pos = 0, int8_t letSpace = LET_SPACE, int8_t txtOffset = TEXT_OFFSET, int8_t letWidth = LET_WIDTH, int8_t letHeight = LET_HEIGHT); // -2147483648
     void drawLetter(uint16_t letter, int16_t offset,  const CRGB &letterColor, int8_t letSpace, int8_t txtOffset, bool isInverse, int8_t letWidth, int8_t letHeight);
     uint8_t getFont(uint8_t asciiCode, uint8_t row);
 
@@ -551,7 +553,8 @@ public:
     TimeProcessor timeProcessor;
     void refreshTimeManual() { timeProcessor.handleTime(true); }
 
-    void sendStringToLamp(const char* text = nullptr,  const CRGB &letterColor = CRGB::Black, bool forcePrint = false);
+    void sendStringToLamp(const char* text = nullptr,  const CRGB &letterColor = CRGB::Black, bool forcePrint = false, const int8_t textOffset = -128, const int16_t fixedPos = 0);
+    bool isPrintingNow() { return isStringPrinting; }
     
     LAMP();
 
@@ -640,7 +643,9 @@ public:
     void fadelight(const uint8_t _targetbrightness=0, const uint32_t _duration=FADE_TIME, std::function<void()> callback=nullptr);
 
     /*
-     *   хук обработчика прерываний для кнопки
+     * крючёк для обработки нажатия кнопки по прерываниям
+     * вызов метода, готоврит о том что состояние пина изменилось, нужно его перечитать
+     * @param bool state - true, кнопку "нажали", false - "отпустили"
      */
     void buttonPress(bool state);
 

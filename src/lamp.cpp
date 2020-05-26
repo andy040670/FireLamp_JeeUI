@@ -39,6 +39,8 @@ JeeUI2 lib used under MIT License Copyright (c) 2019 Marsel Akhkamov
 #include "main.h"
 #include "misc.h"
 
+extern LAMP myLamp; // Объект лампы
+
 void LAMP::lamp_init()
 {
   FastLED.addLeds<WS2812B, LAMP_PIN, COLOR_ORDER>(leds, NUM_LEDS)  /*.setCorrection(TypicalLEDStrip)*/;
@@ -139,7 +141,7 @@ void LAMP::handle()
   static unsigned long mic_check;
 
 #ifdef MIC_EFFECTS
-  if(isMicOn && ONflag && mic_check + MIC_POLLRATE < millis()){
+  if(isMicOn && ONflag && (!dawnFlag) && mic_check + MIC_POLLRATE < millis()){
     micHandler();
     mic_check = millis();
   }
@@ -157,7 +159,7 @@ void LAMP::handle()
 
 #ifdef LAMP_DEBUG
   // fps counter
-  LOG.printf("Eff:%d FPS: %u\n", effects.getEn(), fps);
+  LOG(printf, "Eff:%d FPS: %u\n", effects.getEn(), fps);
   fps = 0;
 #endif
 
@@ -192,10 +194,8 @@ void LAMP::handle()
 #ifdef ESP_USE_BUTTON
 void LAMP::buttonTick()
 {
-  //LOG.printf("Key: %u\n", millis());
 
   touch.tick();
-  //LOG.printf_P(PSTR("ButtonTick - %u\n"), millis());
 
   if (tmNumHoldTimer.isReady() && !startButtonHolding) { // сброс текущей комбинации в обычном режиме, если уже не нажата
       numHold = 0;
@@ -356,7 +356,8 @@ if(touch.isHold() || !touch.isHolded())
       {
         manualOff = true;
         dawnFlag = false;
-        if (ONflag) setBrightness(getNormalizedLampBrightness());
+        setBrightness(getNormalizedLampBrightness(),false, false); // восстановить яркость
+        if(updateParmFunc!=nullptr) updateParmFunc(); // обновить параметры UI
         return;
       }
 
@@ -404,28 +405,28 @@ if(touch.isHold() || !touch.isHolded())
     // пятикратное нажатие
     if (clickCount == 5U)                                     // вывод IP на лампу
     {
-        if(!myLamp.isLampOn()){
-            myLamp.disableEffectsUntilText(); // будем выводить текст, при выкюченной матрице
-            myLamp.setOffAfterText();
-            myLamp.setOnOff(true);
-            myLamp.setBrightness(1,false,false); // выводить будем минимальной яркостью myLamp.getNormalizedLampBrightness()
-            myLamp.sendStringToLamp(WiFi.localIP().toString().c_str(), CRGB::White);
+        if(!isLampOn()){
+            disableEffectsUntilText(); // будем выводить текст, при выкюченной матрице
+            setOffAfterText();
+            setOnOff(true);
+            setBrightness(1,false,false); // выводить будем минимальной яркостью getNormalizedLampBrightness()
+            sendStringToLamp(WiFi.localIP().toString().c_str(), CRGB::White);
         } else {
-            myLamp.sendStringToLamp(WiFi.localIP().toString().c_str(), CRGB::White);
+            sendStringToLamp(WiFi.localIP().toString().c_str(), CRGB::White);
         }
     }
 
     // шестикратное нажатие
     if (clickCount == 6U)                                     // вывод текущего времени бегущей строкой
     {
-        if(!myLamp.isLampOn()){
-            myLamp.disableEffectsUntilText(); // будем выводить текст, при выкюченной матрице
-            myLamp.setOffAfterText();
-            myLamp.setOnOff(true);
-            myLamp.setBrightness(1,false,false); // выводить будем минимальной яркостью myLamp.getNormalizedLampBrightness()
-            myLamp.sendStringToLamp(myLamp.timeProcessor.getFormattedShortTime().c_str(), CRGB::Green); // вывести время на лампу
+        if(!isLampOn()){
+            disableEffectsUntilText(); // будем выводить текст, при выкюченной матрице
+            setOffAfterText();
+            setOnOff(true);
+            setBrightness(1,false,false); // выводить будем минимальной яркостью getNormalizedLampBrightness()
+            sendStringToLamp(timeProcessor.getFormattedShortTime().c_str(), CRGB::Green); // вывести время на лампу
         } else {
-            myLamp.sendStringToLamp(myLamp.timeProcessor.getFormattedShortTime().c_str(), CRGB::Green); // вывести время на лампу
+            sendStringToLamp(timeProcessor.getFormattedShortTime().c_str(), CRGB::Green); // вывести время на лампу
         }
     }
 
@@ -465,15 +466,15 @@ void LAMP::alarmWorker() // обработчик будильника "расс�
     }
 
     if(LAMPMODE::MODE_ALARMCLOCK && ((millis()-GSHMEM.startmillis)/1000>(5+DAWN_TIMEOUT)*60+30 || manualOff)){ // рассвет закончился
-      mode = storedMode;
+      mode = (storedMode!=LAMPMODE::MODE_ALARMCLOCK?storedMode:LAMPMODE::MODE_NORMAL);
       // не время будильника (ещё не начался или закончился по времени)
       if (dawnFlag)
       {
         dawnFlag = false;
         manualOff = false;
-        FastLED.clear();
-        // актуально?
-        //changePower();                                                  // выключение матрицы или установка яркости текущего эффекта в засисимости от того, была ли включена лампа до срабатывания будильника
+         if(!ONflag){
+          FastLED.clear();
+          FastLED.show();
       }
       // #if defined(ALARM_PIN) && defined(ALARM_LEVEL)                    // установка сигнала в пин, управляющий будильником
       // digitalWrite(ALARM_PIN, !ALARM_LEVEL);
@@ -482,6 +483,10 @@ void LAMP::alarmWorker() // обработчик будильника "расс�
       // #if defined(MOSFET_PIN) && defined(MOSFET_LEVEL)                  // установка сигнала в пин, управляющий MOSFET транзистором, соответственно состоянию вкл/выкл матрицы
       // digitalWrite(MOSFET_PIN, ONflag ? MOSFET_LEVEL : !MOSFET_LEVEL);
       // #endif
+
+      LOG(println, F("Отключение будильника рассвет."));
+      brightness(getNormalizedLampBrightness());
+      return; // на выход
     }
 
     //blur2d(25);
@@ -510,7 +515,7 @@ void LAMP::alarmWorker() // обработчик будильника "расс�
           if(!second(timeProcessor.getUnixTime())){
             CRGB letterColor;
             hsv2rgb_rainbow(GSHMEM.dawnColorMinus[0], letterColor); // конвертация цвета времени, с учетом текущей точки рассвета
-            myLamp.sendStringToLamp(timeProcessor.getFormattedShortTime().c_str(), letterColor, true);
+            sendStringToLamp(timeProcessor.getFormattedShortTime().c_str(), letterColor, true);
           }
         }
 #endif
@@ -802,7 +807,6 @@ void LAMP::changePower(bool flag) // флаг включения/выключе�
     }
 
 // ------------- мигающий цвет (не эффект! используется для отображения краткосрочного предупреждения; блокирующий код!) -------------
-extern LAMP myLamp; // Объект лампы
 void LAMP::showWarning(
   CRGB::HTMLColorCode color,                                               /* цвет вспышки                                                 */
   uint32_t duration,                                        /* продолжительность отображения предупреждения (общее время)   */
@@ -878,12 +882,15 @@ void LAMP::startOTAUpdate()
   FastLED.clear();
   changePower(true);
   if(updateParmFunc!=nullptr) updateParmFunc(); // обновить параметры UI
-  myLamp.sendStringToLamp(String(PSTR("- OTA UPDATE ON -")).c_str(), CRGB::Green);
+  sendStringToLamp(String(PSTR("- OTA UPDATE ON -")).c_str(), CRGB::Green);
 }
 #endif
 bool LAMP::fillStringManual(const char* text,  const CRGB &letterColor, bool stopText, bool isInverse, int8_t letSpace, int8_t txtOffset, int8_t letWidth, int8_t letHeight)
 {
   static int32_t offset = (MIRR_V ? 0 : WIDTH);
+
+  if(pos)
+    offset = (MIRR_V ? 0 + pos : WIDTH - pos);
   
   if (!text || !strlen(text))
   {
@@ -911,6 +918,11 @@ bool LAMP::fillStringManual(const char* text,  const CRGB &letterColor, bool sto
   if(!stopText)
     (MIRR_V ? offset++ : offset--);
   if ((!MIRR_V && offset < (int32_t)(-j * (letWidth + letSpace))) || (MIRR_V && offset > (int32_t)(j * (letWidth + letSpace))+(signed)WIDTH))       // строка убежала
+  {
+    offset = (MIRR_V ? 0 : WIDTH);
+    return true;
+  }
+  if(pos) // если задана позиция, то считаем что уже отобразили
   {
     offset = (MIRR_V ? 0 : WIDTH);
     return true;
@@ -992,9 +1004,10 @@ uint8_t LAMP::getFont(uint8_t asciiCode, uint8_t row)       // интерпре�
   return 0;
 }
 
-void LAMP::sendStringToLamp(const char* text, const CRGB &letterColor, bool forcePrint)
+void LAMP::sendStringToLamp(const char* text, const CRGB &letterColor, bool forcePrint, int8_t textOffset, int16_t fixedPos)
 {
   if((!ONflag && !forcePrint) || (dawnFlag && !forcePrint)) return; // если выключена, или если будильник, но не задан принудительный вывод - то на выход
+  if(textOffset==-128) textOffset=this->txtOffset;
 
   if(text==nullptr){ // текст пустой
     if(!isStringPrinting){ // ничего сейчас не печатается
@@ -1004,7 +1017,7 @@ void LAMP::sendStringToLamp(const char* text, const CRGB &letterColor, bool forc
       else { // есть что печатать
         JsonArray arr = docArrMessages.as<JsonArray>(); // используем имеющийся
         JsonObject var=arr[0]; // извлекаем очередной
-        doPrintStringToLamp(var[F("s")], (var[F("c")].as<unsigned long>())); // отправляем
+        doPrintStringToLamp(var[F("s")], (var[F("c")].as<unsigned long>()), (var[F("o")].as<int>()), (var[F("f")].as<int>())); // отправляем
         arr.remove(0); // удаляем отправленный
       }
     } else {
@@ -1013,7 +1026,7 @@ void LAMP::sendStringToLamp(const char* text, const CRGB &letterColor, bool forc
     }
   } else { // текст не пустой
     if(!isStringPrinting){ // ничего сейчас не печатается
-      doPrintStringToLamp(text, letterColor); // отправляем
+      doPrintStringToLamp(text, letterColor, textOffset, fixedPos); // отправляем
     } else { // идет печать, помещаем в очередь
       JsonArray arr; // добавляем в очередь
       
@@ -1037,12 +1050,13 @@ void LAMP::sendStringToLamp(const char* text, const CRGB &letterColor, bool forc
   }
 }
 
-void LAMP::doPrintStringToLamp(const char* text,  const CRGB &letterColor)
+void LAMP::doPrintStringToLamp(const char* text,  const CRGB &letterColor, const int8_t textOffset, const int16_t fixedPos)
 {
   static String toPrint;
   static CRGB _letterColor;
 
   isStringPrinting = true;
+  int8_t offs=(textOffset==-128?txtOffset:textOffset);
 
   if(text!=nullptr && text[0]!='\0'){
     toPrint.concat(text);
@@ -1059,7 +1073,7 @@ void LAMP::doPrintStringToLamp(const char* text,  const CRGB &letterColor)
   }
 
   if(tmStringStepTime.isReadyManual()){
-    if(!fillStringManual(toPrint.c_str(), _letterColor, false, dawnFlag, 1, txtOffset)){ // смещаем
+    if(!fillStringManual(toPrint.c_str(), _letterColor, false, dawnFlag, fixedPos, (fixedPos? 0 : LET_SPACE), offs)){ // смещаем
       tmStringStepTime.reset();
     }
     else {
@@ -1068,7 +1082,7 @@ void LAMP::doPrintStringToLamp(const char* text,  const CRGB &letterColor)
       sendStringToLamp(); // получаем новую порцию
     }
   } else {
-    fillStringManual(toPrint.c_str(), _letterColor, true, dawnFlag, 1, txtOffset);
+    fillStringManual(toPrint.c_str(), _letterColor, true, dawnFlag, fixedPos, (fixedPos? 0 : LET_SPACE), offs);
   }
 }
 
@@ -1406,3 +1420,44 @@ void LAMP::effectsTimer(SCHEDULER action) {
     return;
   }
 }
+
+//-----------------------------
+// ------------- мигающий цвет (не эффект! используется для отображения краткосрочного предупреждения; блокирующий код!) -------------
+void LAMP::showWarning(
+  CRGB::HTMLColorCode color,                                               /* цвет вспышки                                                 */
+  uint32_t duration,                                        /* продолжительность отображения предупреждения (общее время)   */
+  uint16_t blinkHalfPeriod)                                 /* продолжительность одной вспышки в миллисекундах (полупериод) */
+{
+  uint32_t blinkTimer = millis();
+  enum BlinkState { OFF = 0, ON = 1 } blinkState = BlinkState::OFF;
+  myLamp.fadelight(myLamp.getLampBrightness());    // установка яркости для предупреждения
+  FastLED.clear();
+  delay(2);
+  FastLED.show();
+
+  for (uint16_t i = 0U; i < NUM_LEDS; i++)                  // установка цвета всех диодов в WARNING_COLOR
+  {
+    myLamp.setLeds(i, color);
+  }
+
+  uint32_t startTime = millis();
+  while (millis() - startTime <= (duration + 5))            // блокировка дальнейшего выполнения циклом на время отображения предупреждения
+  {
+    if (millis() - blinkTimer >= blinkHalfPeriod)           // переключение вспышка/темнота
+    {
+      blinkTimer = millis();
+      blinkState = (BlinkState)!blinkState;
+      myLamp.brightness(blinkState == BlinkState::OFF ? 0 : myLamp.getLampBrightness());
+      delay(1);
+      FastLED.show();
+    }
+    delay(50);
+  }
+
+  FastLED.clear();
+  myLamp.fadelight(myLamp.isLampOn() ? myLamp.getLampBrightness() : 0);  // установка яркости, которая была выставлена до вызова предупреждения
+  delay(1);
+  FastLED.show();
+  myLamp.setLoading();                                       // принудительное отображение текущего эффекта (того, что был активен перед предупреждением)
+}
+//-----------------------------
