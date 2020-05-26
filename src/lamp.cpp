@@ -158,8 +158,10 @@ void LAMP::handle()
   wait_handlers = millis();
 
 #ifdef LAMP_DEBUG
+EVERY_N_SECONDS(15){
   // fps counter
   LOG(printf, "Eff:%d FPS: %u\n", effects.getEn(), fps);
+}
   fps = 0;
 #endif
 
