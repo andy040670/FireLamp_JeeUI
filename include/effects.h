@@ -151,8 +151,8 @@ void cube2dRoutine(CRGB*, const char *);
 void multipleStreamSmokeRoutine(CRGB*, const char *);
 #ifdef MIC_EFFECTS
 void freqAnalyseRoutine(CRGB*, const char*);
-void timePrintRoutine(CRGB*, const char *);
 #endif
+void timePrintRoutine(CRGB*, const char *);
 //-------------------------------------------------
 const char _R255[] PROGMEM = "[{'R':'127'}]";
 

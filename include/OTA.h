@@ -203,23 +203,23 @@ class OtaManager
 
         if (error == OTA_AUTH_ERROR)
         {
-          LOG(print,F("Auth Failed"));
+          LOG(println,F("Auth Failed"));
         }
         else if (error == OTA_BEGIN_ERROR)
         {
-          LOG(print,F("Begin Failed"));
+          LOG(println,F("Begin Failed"));
         }
         else if (error == OTA_CONNECT_ERROR)
         {
-          LOG(print,F("Connect Failed"));
+          LOG(println,F("Connect Failed"));
         }
         else if (error == OTA_RECEIVE_ERROR)
         {
-          LOG(print,F("Receive Failed"));
+          LOG(println,F("Receive Failed"));
         }
         else if (error == OTA_END_ERROR)
         {
-          LOG(print,F("End Failed"));
+          LOG(println,F("End Failed"));
         }
 
         LOG(print,F("Сброс флага в исходное состояние\nПереход в режим ожидания запроса прошивки по воздуху\n"));
@@ -231,9 +231,9 @@ class OtaManager
 
       LOG(printf_P,PSTR("Для обновления в Arduino IDE выберите пункт меню Инструменты - Порт - '%s at "), espHostName);
       LOG(print,WiFi.localIP());
-      LOG(print,F("'"));
+      LOG(println,F("'"));
       LOG(printf_P,PSTR("Затем нажмите кнопку 'Загрузка' в течение %u секунд и по запросу введите пароль '%s'\n"), ESP_CONF_TIMEOUT, OTA_PASS);
-      LOG(print,F("Устройство с Arduino IDE должно быть в одной локальной сети с модулем ESP!"));
+      LOG(println,F("Устройство с Arduino IDE должно быть в одной локальной сети с модулем ESP!"));
     }
 };
 
