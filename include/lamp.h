@@ -81,9 +81,9 @@ typedef enum _SCHEDULER {
 } SCHEDULER;
 
 // Timings from FastLED chipsets.h
-// WS2812@800kHz - 250ns, 625ns, 375ns
-// время "отправки" кадра в матрицу, мс. где 1.5 эмпирический коэффициент
-//#define FastLED_SHOW_TIME = WIDTH * HEIGHT * 24 * (0.250 + 0.625) / 1000 * 1.5
+// WS2812@800kHz - 250ns, 625ns, 375ns, RES >50 us
+// время "отправки" кадра в матрицу, мс. где 1.5 эмпирический коэффициент "запаса"
+#define FastLED_SHOW_TIME (WIDTH * HEIGHT * 24 * (0.250 + 0.625) / 1000 * 1.5)
 
 /*
  минимальная задержка между обсчетом и выводом кадра, мс
@@ -96,13 +96,13 @@ typedef enum _SCHEDULER {
 
 // RTOS tasks setup
 #define T_FASTLED_SHOW_CORE 1
-#define T_FASTLED_SHOW_PRIO 10
+#define T_FASTLED_SHOW_PRIO 2       // loop runs at 1
 #define T_FASTLED_SHOW_STACKSIZE 1024
-#define T_FASTLED_SHOW_TASKWAIT 40        // ожидание отрисовки, мс (можно пересчитывать от размера матрицы)
+#define T_FASTLED_SHOW_TASKWAIT     FastLED_SHOW_TIME        // таймаут отрисовки, мс
 
 #define T_EFFCALC_CORE 0
 #define T_EFFCALC_PRIO (tskIDLE_PRIORITY+1)
-#define T_EFFCALC_STACKSIZE 2048
+#define T_EFFCALC_STACKSIZE 4096
 
 struct EVENT {
     union {
@@ -476,7 +476,7 @@ private:
     Scheduler ts;                   // TaskScheduler
     Task _fadeTicker;               // планировщик асинхронного фейдера
     Task _demoTicker;               // планировщик Смены эффектов в ДЕМО
-    Task _effectsTicker;            // планировщик обработки эффектов
+    //Task _effectsTicker;            // планировщик обработки эффектов
 
 #ifdef ESP_USE_BUTTON
     GButton touch;               
@@ -514,12 +514,6 @@ private:
      * Смена эффекта в демо по таймеру
      */
     void demoNext() { RANDOM_DEMO ? switcheffect(SW_RND, isFaderON) : switcheffect(SW_NEXT, isFaderON);}
-
-    /*
-     * вывод готового кадра на матрицу,
-     * и перезапуск эффект-процессора
-     */
-    void frameShow(const uint32_t ticktime);
 
     /*
      * RTOS таска обсчитывающая кадр
@@ -694,6 +688,13 @@ public:
      */
     void effectsTimer(SCHEDULER action);
 
+    /*
+     * метод должен дергать Таску выводящую кадр на матрицу и
+     * выполнять все смежные задачи которые нельзя сделать из статической таски
+     * нужно бы заменить на этот метод все вызовы FastLEDshow(во всем коде)
+     * сейчас затычка для FPS и восстановления буфера пока не будет реализован полноценный double buffer
+     */
+    void frameShow();
 
     ~LAMP() {}
 private:

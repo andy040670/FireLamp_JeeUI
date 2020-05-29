@@ -41,8 +41,8 @@ JeeUI2 lib used under MIT License Copyright (c) 2019 Marsel Akhkamov
 
 // хендлы для управления RTOS тасками
 static TaskHandle_t _FLshowTHandle = NULL;
-static TaskHandle_t _workerTHandle = NULL;
 static TaskHandle_t _effcalcTHandle = NULL;
+static TaskHandle_t _loopTHandle = NULL;    // ручка для loop
 
 extern LAMP myLamp; // Объект лампы
 
@@ -102,12 +102,11 @@ void LAMP::lamp_init()
   _demoTicker.set(DEMO_TIMEOUT * TASK_SECOND, TASK_FOREVER, std::bind(&LAMP::demoNext, this));
   ts.addTask(_demoTicker);
 
-  // настраиваем эффект-планировщик
-  //_effectsTicker.set(EFFECTS_RUN_TIMER, TASK_ONCE, std::bind(&LAMP::effectsTick, this));
-  //ts.addTask(_effectsTicker);
-
   // создаем таску для отрисовки кадров на матрицу
   xTaskCreatePinnedToCore(this->FastLEDshowTask, "FastLEDshowTask", T_FASTLED_SHOW_STACKSIZE, (void *)this, T_FASTLED_SHOW_PRIO, &_FLshowTHandle, T_FASTLED_SHOW_CORE);
+
+  xTaskCreatePinnedToCore(this->effCalcTask, "effCalcTask", T_EFFCALC_STACKSIZE, (void *)this, T_EFFCALC_PRIO, &_effcalcTHandle, T_EFFCALC_CORE);
+
 
 #ifdef VERTGAUGE
       if(VERTGAUGE){
@@ -142,8 +141,18 @@ void LAMP::lamp_init()
 
 void LAMP::handle()
 {
+
+  /*
+   *черная магия описана в таске калькулятора
+   */
+  if (ulTaskNotifyTake(pdTRUE,0) ) {// check for "frame-ready" notification
+    if (_FLshowTHandle != NULL){
+      xTaskNotifyGive(_FLshowTHandle);
+      ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(FastLED_SHOW_TIME));
+    }
+  }
+
   ts.execute();   // run task scheduler
-  //effectsTick(); // уехало в тикер
 
   static unsigned long mic_check;
 
@@ -163,6 +172,9 @@ void LAMP::handle()
   if (wait_handlers + 999U > millis())
       return;
   wait_handlers = millis();
+
+  // this is dirty! :)
+  _loopTHandle = xTaskGetCurrentTaskHandle(); // хватаем ручку от loop()
 
 #ifdef LAMP_DEBUG
 EVERY_N_SECONDS(15){
@@ -551,13 +563,15 @@ void LAMP::alarmWorker() // обработчик будильника "расс�
     }
 }
 
+/*
+ * функция обсчета нового кадра, должна вызываться из планировщика
+ * проверяет статус лампы, обсчитывает новый кадр ивозвращает true
+ * если в кадре были изменения и false если кадр можно на матрицу не выводить
+ */
 bool LAMP::effectsTick()
 {
-  uint32_t _begin = millis();
   if(dawnFlag){
     doPrintStringToLamp(); // обработчик печати строки
-    //_effectsTicker.set(LED_SHOW_DELAY, TASK_ONCE, std::bind(&LAMP::frameShow, this, _begin));
-    //_effectsTicker.enableDelayed();
     return true;
   }
 
@@ -565,6 +579,8 @@ bool LAMP::effectsTick()
     // обсчитать текущий эффект (если есть) 
     if(effects.getCurrent()->func!=nullptr){
       effects.getCurrent()->func(getUnsafeLedsArray(), effects.getCurrent()->param);
+      // сохраняем кадр в буфер, который можно вернуть после отрисовки
+      // TODO: true double buffer
 #ifdef USELEDBUF
       ledsbuff.resize(NUM_LEDS);
       std::copy(leds, leds + NUM_LEDS, ledsbuff.begin());
@@ -580,51 +596,43 @@ bool LAMP::effectsTick()
   GaugeShow();
 #endif
 
+  // выводим кадр только если есть текст или эффект
   if (isEffectsDisabledUntilText || effects.getCurrent()->func!=nullptr) {
-    // выводим кадр только если есть текст или эффект
-    //_effectsTicker.set(LED_SHOW_DELAY, TASK_ONCE, std::bind(&LAMP::frameShow, this, _begin));
     return true;
-  }// else {
-    // иначе возвращаемся к началу обсчета следующего кадра
-    //_effectsTicker.set(EFFECTS_RUN_TIMER, TASK_ONCE, std::bind(&LAMP::effectsTick, this));
-    //_effectsTicker.enableDelayed();
-  //}
+  }
   return false;
 }
 // end of void LAMP::effectsTick()
 
 /*
- * вывод готового кадра на матрицу,
- * и перезапуск эффект-процессора
+ * метод должен дергать Таску выводящую кадр на матрицу и
+ * выполнять все смежные задачи которые нельзя сделать из статической таски
+ * нужно бы заменить на этот метод все вызовы FastLEDshow(во всем коде)
+ * сейчас затычка для FPS и восстановления буфера пока не будет реализован полноценный double buffer
  */
-void LAMP::frameShow(const uint32_t ticktime){
-
+void LAMP::frameShow(){
+/*
   _workerTHandle = xTaskGetCurrentTaskHandle(); // сохраняем хендл основного цикла
   if (_FLshowTHandle != NULL)
     xTaskNotifyGive(_FLshowTHandle);
+*/
 
   /*
    * блокируемся на время отрисовки
    * т.к. fastled отрабатывает на том же ядре что и loop(),
    * на 0-м ядре всплывают артефакты
    */
-  ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS( T_FASTLED_SHOW_TASKWAIT ));
-
+  //ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS( T_FASTLED_SHOW_TASKWAIT ));
   // восстановление кадра с прорисованным эффектом из буфера (без текста и индикаторов) 
 #ifdef USELEDBUF
   if (!ledsbuff.empty()) {
     std::copy( ledsbuff.begin(), ledsbuff.end(), leds );
-    ledsbuff.resize(0);
-    ledsbuff.shrink_to_fit();
+    // не очищаем буфер, т.к. процесс спал пока кадр рисовался (памяти на esp32 навалом под даблбуфер) 
+    //ledsbuff.resize(0);
+    //ledsbuff.shrink_to_fit();
   }
 #endif
 
-  // откладываем пересчет эффекта на время для желаемого FPS, либо
-  // на минимальный интервал в следующем loop()
-  int32_t delay = EFFECTS_RUN_TIMER + ticktime - millis();
-  if (delay < LED_SHOW_DELAY) delay = LED_SHOW_DELAY;
-  _effectsTicker.set(delay, TASK_ONCE, std::bind(&LAMP::effectsTick, this));
-  _effectsTicker.enableDelayed();
 #ifdef LAMP_DEBUG
   ++fps;
 #endif
@@ -1355,8 +1363,11 @@ void LAMP::switcheffect(EFFSWITCH action, bool fade, EFF_ENUM effnb) {
   EFFECT *currentEffect = effects.getCurrent();
   setLoading();
 
-  if(currentEffect->func!=nullptr)
-    currentEffect->func(getUnsafeLedsArray(), currentEffect->param); // отрисовать текущий эффект
+/*
+  // WA: очищаем буфер
+  ledsbuff.resize(0);
+  ledsbuff.shrink_to_fit();
+*/
 
   if (fade) {
     fadelight(getNormalizedLampBrightness());
@@ -1391,18 +1402,16 @@ void LAMP::demoTimer(SCHEDULER action){
 }
 
 void LAMP::effectsTimer(SCHEDULER action) {
-//  LOG.printf_P(PSTR("effectsTimer: %u\n"), action);
+  LOG(printf_P, PSTR("effectsTimer: %u\n"), action);
   switch (action)
   {
   case SCHEDULER::T_DISABLE :
-    //_effectsTicker.disable();
-    vTaskDelete(_effcalcTHandle);
-    _effcalcTHandle = NULL;
+    if (_effcalcTHandle != NULL)
+      xTaskNotifyGive(_effcalcTHandle); 
     break;
   case SCHEDULER::T_ENABLE :
-    //_effectsTicker.enableDelayed();
-    // создаем таску для обсчета кадров
-    xTaskCreatePinnedToCore(this->effCalcTask, "effCalcTask", T_EFFCALC_STACKSIZE, (void *)this, T_EFFCALC_PRIO, &_effcalcTHandle, T_EFFCALC_CORE);
+    if (_effcalcTHandle != NULL)
+      xTaskNotify(_effcalcTHandle, 0, eSetValueWithOverwrite);
     break;
   default:
     return;
@@ -1457,14 +1466,17 @@ void LAMP::showWarning(
 void LAMP::FastLEDshowTask(void *pvParameters){
   for(;;) {
     _FLshowTHandle = xTaskGetCurrentTaskHandle();
-    // -- Wait for the trigger
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    _FLshowTHandle = NULL;
-    // -- Do the show (synchronously)
+    _FLshowTHandle = NULL;  // убираем хендл на время вывода
     FastLED.show();
+
     // -- Notify the calling task
-    if (_effcalcTHandle != NULL)
-      xTaskNotifyGive(_effcalcTHandle);
+    // надо передвать хендлер через параметр
+    // но пока у нас таска одна и той апдейт не нужен
+    //if (_effcalcTHandle != NULL)
+    //  xTaskNotifyGive(_effcalcTHandle);
+    if (_loopTHandle != NULL)   // отпускаем loop()
+      xTaskNotify(_effcalcTHandle, 0, eSetValueWithOverwrite);
   }
 }
 
@@ -1474,12 +1486,36 @@ void LAMP::FastLEDshowTask(void *pvParameters){
 void LAMP::effCalcTask(void *pvParameters){
   // LAMP myLamp is external instance
   TickType_t xLastWakeTime = xTaskGetTickCount ();
+  // почему-то CONFIG_FREERTOS_HZ тикает вдвое чаще чем положенно, надо выяснить
+  const TickType_t xPeriod = EFFECTS_RUN_TIMER / portTICK_RATE_MS * 2;
   for(;;) {
-    if ( myLamp.effectsTick() ){
-      xTaskNotifyGive(_FLshowTHandle);
-      ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS( T_FASTLED_SHOW_TASKWAIT ));
+
+    if (ulTaskNotifyTake(pdTRUE,0)) {// check for "suspend" notification
+      ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     }
 
-    vTaskDelayUntil( &xLastWakeTime, EFFECTS_RUN_TIMER / portTICK_PERIOD_MS );
+    /*
+     * режим черной магии
+     * при выводе кадра в таске на ядре параллельно loop()
+     * матрицу подглючивает от активностей вебсервера и пр.
+     * поэтому сообщение на отрисовку мы шлем в ручку loop()'а не рисоваки
+     * заклинание проверяет нотификашки каждый цикл, увидев готовый кадр
+     * оно тормознет весь луп, хе-хе, и даст сигнал от отрисовку.
+     * по обратке луп продолжит работу
+     */
+    if ( myLamp.effectsTick() && _loopTHandle)
+      xTaskNotifyGive(_loopTHandle);
+
+    // спим до начала следующего кадра, считаем что вывод закончится всяко раньше чем начнет обсчитываться новый кадр
+    // тут могут быть проблемы с перезаписью буфера на тяжелых эффектах и больших FSP, нужен полноценный double buffer
+    // TODO реализовать полноценный Double Buffer, требуются изменения в эффектах
+    // TODO посчитать максимальный возможный FPS на N матрицах с учетом голого вывода данных
+    if (xTaskGetTickCount () - xLastWakeTime < xPeriod ) {
+      vTaskDelayUntil( &xLastWakeTime, xPeriod );
+    } else {
+      vTaskDelay( LED_SHOW_DELAY );   // не даем планировщику голодать под нагрузкой
+      xLastWakeTime = xTaskGetTickCount ();
+    }
+    myLamp.frameShow(); // заглушка для FPS и восстановления буфера
   }
 }
