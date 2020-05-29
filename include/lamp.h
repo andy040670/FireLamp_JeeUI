@@ -94,6 +94,15 @@ typedef enum _SCHEDULER {
  */
 #define LED_SHOW_DELAY 2
 
+// RTOS tasks setup
+#define FASTLED_SHOW_CORE 1
+#define FASTLED_SHOW_PRIO 5
+#define FASTLED_SHOW_STACKSIZE 1024
+#define FASTLED_SHOW_TASKWAIT 40        // ожидание отрисовки, мс (можно пересчитывать от размера матрицы)
+
+#define EFFECT_TICK_CORE 0
+#define EFFECT_TICK_PRIO 1
+#define EFFECT_TICK_STACKSIZE 1024
 
 struct EVENT {
     union {
@@ -508,6 +517,17 @@ private:
      */
     void frameShow(const uint32_t ticktime);
 
+    /*
+     * RTOS таска обсчитывающая кадр
+     * 
+     */
+    static void effectcalcTask(void *pvParameters);
+
+    /*
+     * RTOS таска отрисовывающая кадр по наступлению сообщения
+     * 
+     */
+    static void FastLEDshowTask(void *pvParameters);
 
 public:
     EffectWorker effects; // объект реализующий доступ к эффектам

@@ -39,6 +39,10 @@ JeeUI2 lib used under MIT License Copyright (c) 2019 Marsel Akhkamov
 #include "main.h"
 #include "misc.h"
 
+// хендлы для управления RTOS тасками
+static TaskHandle_t _FLshowTHandle = NULL;
+static TaskHandle_t _workerTHandle = NULL;
+
 extern LAMP myLamp; // Объект лампы
 
 void LAMP::lamp_init()
@@ -98,9 +102,11 @@ void LAMP::lamp_init()
   ts.addTask(_demoTicker);
 
   // настраиваем эффект-планировщик
-  _effectsTicker.set(DEMO_TIMEOUT * TASK_SECOND, TASK_FOREVER, std::bind(&LAMP::demoNext, this));
   _effectsTicker.set(EFFECTS_RUN_TIMER, TASK_ONCE, std::bind(&LAMP::effectsTick, this));
   ts.addTask(_effectsTicker);
+
+  // создаем таску для отрисовки кадров на матрицу
+  xTaskCreatePinnedToCore(this->FastLEDshowTask, "FastLEDshowTask", FASTLED_SHOW_STACKSIZE, (void *)this, FASTLED_SHOW_PRIO, &_FLshowTHandle, FASTLED_SHOW_CORE);
 
 #ifdef VERTGAUGE
       if(VERTGAUGE){
@@ -549,14 +555,13 @@ void LAMP::effectsTick()
   uint32_t _begin = millis();
   if(dawnFlag){
     doPrintStringToLamp(); // обработчик печати строки
-    //FastLED.show();
     _effectsTicker.set(LED_SHOW_DELAY, TASK_ONCE, std::bind(&LAMP::frameShow, this, _begin));
     _effectsTicker.enableDelayed();
     return;
   }
 
   if(!isEffectsDisabledUntilText){
-    // отрисовать текущий эффект (если есть) 
+    // обсчитать текущий эффект (если есть) 
     if(effects.getCurrent()->func!=nullptr){
       effects.getCurrent()->func(getUnsafeLedsArray(), effects.getCurrent()->param);
 #ifdef USELEDBUF
@@ -576,7 +581,7 @@ void LAMP::effectsTick()
     _effectsTicker.set(LED_SHOW_DELAY, TASK_ONCE, std::bind(&LAMP::frameShow, this, _begin));
   } else {
     // иначе возвращаемся к началу обсчета следующего кадра
-    //_effectsTicker.set(EFFECTS_RUN_TIMER, TASK_ONCE, std::bind(&LAMP::effectsTick, this));
+    _effectsTicker.set(EFFECTS_RUN_TIMER, TASK_ONCE, std::bind(&LAMP::effectsTick, this));
     _effectsTicker.enableDelayed();
   }
 
@@ -589,8 +594,18 @@ void LAMP::effectsTick()
  */
 void LAMP::frameShow(const uint32_t ticktime){
 
-  FastLED.show();
-// восстановление кадра с прорисованным эффектом из буфера (без текста и индикаторов) 
+  _workerTHandle = xTaskGetCurrentTaskHandle(); // сохраняем хендл основного цикла
+  if (_FLshowTHandle != NULL)
+    xTaskNotifyGive(_FLshowTHandle);
+
+  /*
+   * блокируемся на время отрисовки
+   * т.к. fastled отрабатывает на том же ядре что и loop(),
+   * на 0-м ядре всплывают артефакты
+   */
+  ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS( FASTLED_SHOW_TASKWAIT ));
+
+  // восстановление кадра с прорисованным эффектом из буфера (без текста и индикаторов) 
 #ifdef USELEDBUF
   if (!ledsbuff.empty()) {
     std::copy( ledsbuff.begin(), ledsbuff.end(), leds );
@@ -1428,3 +1443,21 @@ void LAMP::showWarning(
   myLamp.setLoading();                                       // принудительное отображение текущего эффекта (того, что был активен перед предупреждением)
 }
 //-----------------------------
+
+/*
+ *  таска отрисовывающая кадр по наступлению сообщения
+ * 
+ */
+void LAMP::FastLEDshowTask(void *pvParameters){
+  for(;;) {
+    _FLshowTHandle = xTaskGetCurrentTaskHandle();
+    // -- Wait for the trigger
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    _FLshowTHandle = NULL;
+    // -- Do the show (synchronously)
+    FastLED.show();
+    // -- Notify the calling task
+    if (_workerTHandle != NULL)
+      xTaskNotifyGive(_workerTHandle);
+  }
+}
