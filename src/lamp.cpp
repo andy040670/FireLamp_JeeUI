@@ -42,6 +42,7 @@ JeeUI2 lib used under MIT License Copyright (c) 2019 Marsel Akhkamov
 // хендлы для управления RTOS тасками
 static TaskHandle_t _FLshowTHandle = NULL;
 static TaskHandle_t _workerTHandle = NULL;
+static TaskHandle_t _effcalcTHandle = NULL;
 
 extern LAMP myLamp; // Объект лампы
 
@@ -102,11 +103,11 @@ void LAMP::lamp_init()
   ts.addTask(_demoTicker);
 
   // настраиваем эффект-планировщик
-  _effectsTicker.set(EFFECTS_RUN_TIMER, TASK_ONCE, std::bind(&LAMP::effectsTick, this));
-  ts.addTask(_effectsTicker);
+  //_effectsTicker.set(EFFECTS_RUN_TIMER, TASK_ONCE, std::bind(&LAMP::effectsTick, this));
+  //ts.addTask(_effectsTicker);
 
   // создаем таску для отрисовки кадров на матрицу
-  xTaskCreatePinnedToCore(this->FastLEDshowTask, "FastLEDshowTask", FASTLED_SHOW_STACKSIZE, (void *)this, FASTLED_SHOW_PRIO, &_FLshowTHandle, FASTLED_SHOW_CORE);
+  xTaskCreatePinnedToCore(this->FastLEDshowTask, "FastLEDshowTask", T_FASTLED_SHOW_STACKSIZE, (void *)this, T_FASTLED_SHOW_PRIO, &_FLshowTHandle, T_FASTLED_SHOW_CORE);
 
 #ifdef VERTGAUGE
       if(VERTGAUGE){
@@ -550,14 +551,14 @@ void LAMP::alarmWorker() // обработчик будильника "расс�
     }
 }
 
-void LAMP::effectsTick()
+bool LAMP::effectsTick()
 {
   uint32_t _begin = millis();
   if(dawnFlag){
     doPrintStringToLamp(); // обработчик печати строки
-    _effectsTicker.set(LED_SHOW_DELAY, TASK_ONCE, std::bind(&LAMP::frameShow, this, _begin));
-    _effectsTicker.enableDelayed();
-    return;
+    //_effectsTicker.set(LED_SHOW_DELAY, TASK_ONCE, std::bind(&LAMP::frameShow, this, _begin));
+    //_effectsTicker.enableDelayed();
+    return true;
   }
 
   if(!isEffectsDisabledUntilText){
@@ -568,6 +569,9 @@ void LAMP::effectsTick()
       ledsbuff.resize(NUM_LEDS);
       std::copy(leds, leds + NUM_LEDS, ledsbuff.begin());
 #endif
+    #ifdef LAMP_DEBUG
+      ++fps;
+    #endif
     }
   }
 
@@ -578,13 +582,14 @@ void LAMP::effectsTick()
 
   if (isEffectsDisabledUntilText || effects.getCurrent()->func!=nullptr) {
     // выводим кадр только если есть текст или эффект
-    _effectsTicker.set(LED_SHOW_DELAY, TASK_ONCE, std::bind(&LAMP::frameShow, this, _begin));
-  } else {
+    //_effectsTicker.set(LED_SHOW_DELAY, TASK_ONCE, std::bind(&LAMP::frameShow, this, _begin));
+    return true;
+  }// else {
     // иначе возвращаемся к началу обсчета следующего кадра
-    _effectsTicker.set(EFFECTS_RUN_TIMER, TASK_ONCE, std::bind(&LAMP::effectsTick, this));
-    _effectsTicker.enableDelayed();
-  }
-
+    //_effectsTicker.set(EFFECTS_RUN_TIMER, TASK_ONCE, std::bind(&LAMP::effectsTick, this));
+    //_effectsTicker.enableDelayed();
+  //}
+  return false;
 }
 // end of void LAMP::effectsTick()
 
@@ -603,7 +608,7 @@ void LAMP::frameShow(const uint32_t ticktime){
    * т.к. fastled отрабатывает на том же ядре что и loop(),
    * на 0-м ядре всплывают артефакты
    */
-  ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS( FASTLED_SHOW_TASKWAIT ));
+  ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS( T_FASTLED_SHOW_TASKWAIT ));
 
   // восстановление кадра с прорисованным эффектом из буфера (без текста и индикаторов) 
 #ifdef USELEDBUF
@@ -1390,13 +1395,14 @@ void LAMP::effectsTimer(SCHEDULER action) {
   switch (action)
   {
   case SCHEDULER::T_DISABLE :
-    _effectsTicker.disable();
+    //_effectsTicker.disable();
+    vTaskDelete(_effcalcTHandle);
+    _effcalcTHandle = NULL;
     break;
   case SCHEDULER::T_ENABLE :
-    _effectsTicker.enableDelayed();
-    break;
-  case SCHEDULER::T_RESET :
-    if (_effectsTicker.isEnabled() ) _effectsTicker.delay(0);
+    //_effectsTicker.enableDelayed();
+    // создаем таску для обсчета кадров
+    xTaskCreatePinnedToCore(this->effCalcTask, "effCalcTask", T_EFFCALC_STACKSIZE, (void *)this, T_EFFCALC_PRIO, &_effcalcTHandle, T_EFFCALC_CORE);
     break;
   default:
     return;
@@ -1445,7 +1451,7 @@ void LAMP::showWarning(
 //-----------------------------
 
 /*
- *  таска отрисовывающая кадр по наступлению сообщения
+ *  RTOS таска отрисовывающая кадр по наступлению сообщения
  * 
  */
 void LAMP::FastLEDshowTask(void *pvParameters){
@@ -1457,7 +1463,23 @@ void LAMP::FastLEDshowTask(void *pvParameters){
     // -- Do the show (synchronously)
     FastLED.show();
     // -- Notify the calling task
-    if (_workerTHandle != NULL)
-      xTaskNotifyGive(_workerTHandle);
+    if (_effcalcTHandle != NULL)
+      xTaskNotifyGive(_effcalcTHandle);
+  }
+}
+
+/*
+ * RTOS Таска управляющая обсчетом кадров
+ */
+void LAMP::effCalcTask(void *pvParameters){
+  // LAMP myLamp is external instance
+  TickType_t xLastWakeTime = xTaskGetTickCount ();
+  for(;;) {
+    if ( myLamp.effectsTick() ){
+      xTaskNotifyGive(_FLshowTHandle);
+      ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS( T_FASTLED_SHOW_TASKWAIT ));
+    }
+
+    vTaskDelayUntil( &xLastWakeTime, EFFECTS_RUN_TIMER / portTICK_PERIOD_MS );
   }
 }
