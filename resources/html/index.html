@@ -61,6 +61,14 @@
 					<button class="pure-menu-selected" onclick="setDynCSS('css/style_dark.css');">D</button>
 				</span>
 			</div>
+			<div>
+				<span class="menu-title">Lang:</span><span class="menu-value">
+					<select id="lang">
+					<option {{#if lan == "eng"}} selected {{/if}} value = "eng">EN</option>
+					<option {{#if lan == "rus"}} selected {{/if}} value = "rus">RU</option>
+					</select>
+				</span>
+			</div>
 		</div>
 	</script>
 

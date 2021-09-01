@@ -5,7 +5,7 @@ USAGE="Usage: `basename $0` [-h] [-t embuitag] args"
 # etag file
 tags=etags.txt
 # embui branch/tag name to fetch
-embuitag="dev"
+embuitag="langs"
 
 refresh_styles=0
 
@@ -49,7 +49,7 @@ freshtag(){
 
 echo "Preparing resources for FireLamp FS image into ../data/ dir" 
 
-mkdir -p ../data/css ../data/js ../data/extras ../data/login
+mkdir -p ../data/css ../data/js ../data/extras ../data/login ../data/local
 
 # собираем скрипты и стили из репозитория EmbUI (используется dev ветка, при формировании выпусков пути нужно изменить)
 if freshtag https://github.com/DmytroKorniienko/EmbUI/raw/$embuitag/resources/data.zip ; then
@@ -93,6 +93,9 @@ fi
 # update static files if newer
 [ ! -f ../data/index.html.gz ]  || [ html/index.html -nt ../data/index.html.gz ] && gzip -9k html/index.html && mv -f html/index.html.gz ../data/
 [ ! -f ../data/favicon.ico.gz ] || [ html/favicon.ico -nt ../data/favicon.ico.gz ] &&  gzip -9k html/favicon.ico && mv -f html/favicon.ico.gz ../data/
+[ ! -f ../data/local/eng.json.gz ] || [ html/local/eng.json -nt ../data/local/eng.json.gz ] &&  gzip -9k html/local/eng.json && mv -f html/local/eng.json.gz ../data/local/eng.json.gz
+[ ! -f ../data/local/rus.json.gz ] || [ html/local/rus.json -nt ../data/local/rus.json.gz ] &&  gzip -9k html/local/rus.json && mv -f html/local/rus.json.gz ../data/local/rus.json.gz
+[ ! -f ../data/local/rus.glossaryEff.gz ] || [ html/local/glossaryEff.json -nt ../data/local/glossaryEff.json.gz ] &&  gzip -9k html/local/glossaryEff.json && mv -f html/local/glossaryEff.json.gz ../data/local/glossaryEff.json.gz
 
 cp -u html/.exclude.files ../data/
 cp -u html/css/*.svg ../data/css/
