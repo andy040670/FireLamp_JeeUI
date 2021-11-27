@@ -2650,6 +2650,10 @@ void set_streaming_mapping(Interface *interf, JsonObject *data){
     myLamp.setMapping((*data)[FPSTR(TCONST_004A)] == "1");
     save_lamp_flags();
 }
+void set_streaming_bright(Interface *interf, JsonObject *data){
+    if (!data) return;
+    remote_action(RA_CONTROL, (String(FPSTR(TCONST_0015))+F("0")).c_str(), String((*data)[FPSTR(TCONST_0012)].as<String>()).c_str(), NULL);
+}
 
 void set_streaming_type(Interface *interf, JsonObject *data){
     if (!data) return;
@@ -3049,6 +3053,7 @@ void create_parameters(){
     embui.section_handle_add(FPSTR(TCONST_0049), set_streaming_drirect);
     embui.section_handle_add(FPSTR(TCONST_004A), set_streaming_mapping);
     embui.section_handle_add(FPSTR(TCONST_0077), set_streaming_universe);
+    embui.section_handle_add(FPSTR(TCONST_0012), set_streaming_bright);
 #endif
     embui.section_handle_add(FPSTR(TCONST_009A), section_sys_settings_frame);
     embui.section_handle_add(FPSTR(TCONST_0003), section_text_frame);
