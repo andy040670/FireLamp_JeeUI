@@ -38,6 +38,9 @@ JeeUI2 lib used under MIT License Copyright (c) 2019 Marsel Akhkamov
 #include "main.h"
 #include "effectmath.h"
 #include "fontHEX.h"
+#ifdef USE_STREAMING
+#include "ledStream.h"
+#endif
 
 extern LAMP myLamp; // Объект лампы
 
@@ -409,10 +412,18 @@ void LAMP::changePower(bool flag) // флаг включения/выключе�
     mode = LAMPMODE::MODE_NORMAL;
 
   if (flag){
+#ifdef USE_STREAMING
+    if (flags.isStream)
+      Led_Stream::newStreamObj((STREAM_TYPE)embui.param(FPSTR(TCONST_0047)).toInt());
+    if(!flags.isDirect)
+#endif
     effectsTimer(T_ENABLE);
     if(mode == LAMPMODE::MODE_DEMO)
       demoTimer(T_ENABLE);
   } else  {
+#ifdef USE_STREAMING
+    Led_Stream::clearStreamObj();
+#endif
     if(flags.isFaderON && !lampState.isOffAfterText)
       fadelight(this, 0, FADE_TIME, std::bind(&LAMP::effectsTimer, this, SCHEDULER::T_DISABLE, 0));  // гасим эффект-процессор
     else {
@@ -464,6 +475,9 @@ void LAMP::startAlarm(char *value){
   storedMode = ((mode == LAMPMODE::MODE_ALARMCLOCK) ? storedMode: mode);
   mode = LAMPMODE::MODE_ALARMCLOCK;
   demoTimer(T_DISABLE);     // гасим Демо-таймер
+#ifdef USE_STREAMING
+  if(!flags.isDirect)
+#endif
   effectsTimer(T_ENABLE);
 #ifdef MP3PLAYER
   if(curAlarm.isStartSnd){
