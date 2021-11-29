@@ -133,7 +133,7 @@ void Led_Stream::fillBuff(const String &str){
         if (myLamp.isMapping()) {
             for(uint8_t x = 0; x < WIDTH; x++) {
                 for (uint8_t y = 0; y < HEIGHT; y++) {
-                    uint16_t i = getPixelNumber(y, x)*3;
+                    uint16_t i = EffectMath::getPixelNumberBuff((WIDTH-1) - x, y, WIDTH, HEIGHT) * 3;
                     EffectMath::getPixel(x, y) = CRGB((uint8_t)str[i], (uint8_t)str[i+1], (uint8_t)str[i+2]);
                 }
             }
@@ -149,7 +149,7 @@ void Led_Stream::fillBuff(const String &str){
         if (myLamp.isMapping()) {
             for(uint8_t x = 0; x < WIDTH; x++) {
                 for (uint8_t y = 0; y < HEIGHT; y++) {
-                    uint16_t i = getPixelNumber(y, x)*3;
+                    uint16_t i = EffectMath::getPixelNumberBuff((WIDTH-1) - x, y, WIDTH, HEIGHT) * 3;
                     CRGB temp = CRGB((uint8_t)str[i], (uint8_t)str[i+1], (uint8_t)str[i+2]);
                     myLamp.writeDrawBuf(temp, x, y);
                 }
@@ -187,6 +187,8 @@ Led_Stream::~Led_Stream(){
         e131 = nullptr;
         bufLeds = nullptr;
     }
+    if (myLamp.isDirect())
+        myLamp.effectsTimer(T_ENABLE);
 }
 
 

@@ -445,7 +445,7 @@ static const char TINTF_0E2[] PROGMEM = "Трансляция";
 static const char TINTF_0E3[] PROGMEM = "Режим";
 static const char TINTF_0E4[] PROGMEM = "E1.31";
 static const char TINTF_0E5[] PROGMEM = "SoulMate";
-static const char TINTF_0E6[] PROGMEM = "Выкл.Эффекты";
+static const char TINTF_0E6[] PROGMEM = "Блок.Эффект";
 static const char TINTF_0E7[] PROGMEM = "Разметка";
 // static const char TINTF_0E6[] PROGMEM = "Universe";
 

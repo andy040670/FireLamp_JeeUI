@@ -415,7 +415,7 @@ void LAMP::changePower(bool flag) // флаг включения/выключе�
 #ifdef USE_STREAMING
     if (flags.isStream)
       Led_Stream::newStreamObj((STREAM_TYPE)embui.param(FPSTR(TCONST_0047)).toInt());
-    if(!flags.isDirect)
+    if(!flags.isDirect || !flags.isStream)
 #endif
     effectsTimer(T_ENABLE);
     if(mode == LAMPMODE::MODE_DEMO)
@@ -476,7 +476,7 @@ void LAMP::startAlarm(char *value){
   mode = LAMPMODE::MODE_ALARMCLOCK;
   demoTimer(T_DISABLE);     // гасим Демо-таймер
 #ifdef USE_STREAMING
-  if(!flags.isDirect)
+  if(!flags.isDirect || !flags.isStream)
 #endif
   effectsTimer(T_ENABLE);
 #ifdef MP3PLAYER
