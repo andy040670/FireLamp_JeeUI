@@ -2597,8 +2597,8 @@ void block_streaming(Interface *interf, JsonObject *data){
         interf->json_section_end();
         interf->range(FPSTR(TCONST_0012), (String)myLamp.getBrightness(), F("0"), F("255"), F("1"), (String)FPSTR(TINTF_00D), true);
         if (embui.param(FPSTR(TCONST_0047)).toInt() == E131){
-            interf->range(FPSTR(TCONST_0077), embui.param(FPSTR(TCONST_0077)), F("1"), F("255"), F("1"), (String)FPSTR(TCONST_0077), true);
-            interf->comment(String(F("Количество Universes : ")) + String(ceil((float)HEIGHT / (512U / (WIDTH * 3))), 0U));
+            interf->range(FPSTR(TCONST_0077), embui.param(FPSTR(TCONST_0077)), F("1"), F("255"), F("1"), (String)FPSTR(TINTF_0E8), true);
+            interf->comment(String(F("Universes QT: ")) + String(ceil((float)HEIGHT / (512U / (WIDTH * 3))), 0U));
             interf->comment(String(F("Настройки маппинга для Jinx можно посмотреть <a href=\"https://community.alexgyver.ru/threads/wifi-lampa-budilnik-proshivka-firelamp_jeeui-gpl.2739/page-454#post-103219\">ТУТ</a>")));
         }
     interf->json_section_end();
@@ -2637,12 +2637,20 @@ void set_streaming_drirect(Interface *interf, JsonObject *data){
     myLamp.setDirect(flag);
     if (ledStream){
         if (flag) {
+#ifdef EXT_STREAM_BUFFER
+            myLamp.setStreamBuff(false);
+#endif
             myLamp.effectsTimer(T_DISABLE);
             myLamp.clearDrawBuf();
             FastLED.clear();
             FastLED.show();
         }
-        else myLamp.effectsTimer(T_ENABLE);
+        else {
+            myLamp.effectsTimer(T_ENABLE);
+#ifdef EXT_STREAM_BUFFER
+            myLamp.setStreamBuff(true);
+#endif
+        }
     }
     save_lamp_flags();
 }
@@ -2661,12 +2669,14 @@ void set_streaming_type(Interface *interf, JsonObject *data){
     SETPARAM(FPSTR(TCONST_0047));
     STREAM_TYPE type = (STREAM_TYPE)(*data)[FPSTR(TCONST_0047)].as<int>();
     LOG(printf_P, PSTR("Stream Type %d \n"), type);
-    if (ledStream) {
-        if (ledStream->getStreamType() == type)
-            return;
-        Led_Stream::clearStreamObj();
+    if (myLamp.isStreamOn()) {
+        if (ledStream) {
+            if (ledStream->getStreamType() == type)
+                return;
+            Led_Stream::clearStreamObj();
+        }
+        Led_Stream::newStreamObj(type);
     }
-    Led_Stream::newStreamObj(type);
     section_streaming_frame(interf, data);
 }
 
@@ -2679,8 +2689,6 @@ void set_streaming_universe(Interface *interf, JsonObject *data){
         }
     }
 }
-
-
 #endif
 // Точка входа в настройки
 void user_settings_frame(Interface *interf, JsonObject *data);
@@ -3296,15 +3304,14 @@ t->enableDelayed();
 
 #ifdef USE_STREAMING
     obj[FPSTR(TCONST_0046)] = tmp.isStream ? "1" : "0";
-    LOG(printf_P, PSTR("tmp.isStream %d \n"), tmp.isStream);
     set_streaming(nullptr, &obj);
     doc.clear(); doc.garbageCollect(); obj = doc.to<JsonObject>();
 
-    obj[FPSTR(TCONST_0049)] = tmp.isStream ? "1" : "0";
-    myLamp.setDirect(tmp.isDirect);
+    obj[FPSTR(TCONST_0049)] = tmp.isDirect ? "1" : "0";
+    set_streaming_drirect(nullptr, &obj);
     doc.clear(); doc.garbageCollect(); obj = doc.to<JsonObject>();
 
-    obj[FPSTR(TCONST_004A)] = tmp.isStream ? "1" : "0";
+    obj[FPSTR(TCONST_004A)] = tmp.isMapping ? "1" : "0";
     set_streaming_mapping(nullptr, &obj);
     doc.clear(); doc.garbageCollect(); obj = doc.to<JsonObject>();
 

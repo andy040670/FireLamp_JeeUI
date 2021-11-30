@@ -398,7 +398,7 @@ public:
     void setDirect(bool flag) {flags.isDirect = flag;}
     void setMapping(bool flag) {flags.isMapping = flag;}
 #ifdef EXT_STREAM_BUFFER
-    void setStreambuff(bool flag) {
+    void setStreamBuff(bool flag) {
         // flags.isDraw=flag;
         if(!flag){
             if (!streambuff.empty()) {
@@ -410,9 +410,9 @@ public:
             //for(uint16_t i=0; i<NUM_LEDS; i++) {drawbuff[i] = CHSV(random(0,255),0,255);} // тест :)
         }
     }
-    void writeStreambuff(CRGB &color, uint16_t x, uint16_t y) { if(!streambuff.empty()) { streambuff[getPixelNumber(x,y)]=color; } }
-    void writeStreambuff(CRGB &color, uint16_t num) { if(!streambuff.empty()) { streambuff[num]=color; } }
-    void fillStreambuff(CRGB &color) { for(uint16_t i=0; i<streambuff.size(); i++) streambuff[i]=color; }
+    void writeStreamBuff(CRGB &color, uint16_t x, uint16_t y) { if(!streambuff.empty()) { streambuff[getPixelNumber(x,y)]=color; } }
+    void writeStreamBuff(CRGB &color, uint16_t num) { if(!streambuff.empty()) { streambuff[num]=color; } }
+    void fillStreamBuff(CRGB &color) { for(uint16_t i=0; i<streambuff.size(); i++) streambuff[i]=color; }
 #endif
 #endif
     bool isONMP3() {return flags.isOnMP3;}
@@ -526,10 +526,8 @@ private:
     LAMP& operator=(const LAMP&);  // noncopyable
     std::vector<CRGB> ledsbuff; // вспомогательный буфер для слоя после эффектов
     std::vector<CRGB> drawbuff; // буфер для рисования
-#ifdef USE_STREAMING
-#ifndef EXT_STREAM_BUFFER
+#if defined(USE_STREAMING) && defined(EXT_STREAM_BUFFER)
     std::vector<CRGB> streambuff; // буфер для трансляции
-#endif
 #endif
 };
 

@@ -87,6 +87,10 @@ Led_Stream::Led_Stream(const STREAM_TYPE type){
         FastLED.clear();
         FastLED.show();
     }
+#ifdef EXT_STREAM_BUFFER
+    else
+        myLamp.setStreamBuff(true);
+#endif
 }
 
 
@@ -110,13 +114,21 @@ void Led_Stream::fillBuff() {
         if (myLamp.isMapping()){
             for(uint8_t x = 0; x < WIDTH; x++) {
                 for (uint8_t y = 0; y < HEIGHT; y++) {
+#ifdef EXT_STREAM_BUFFER
+                    myLamp.writeStreamBuff(bufLeds[getPixelNum(x, y)], x, y);
+#else
                     myLamp.writeDrawBuf(bufLeds[getPixelNum(x, y)], x, y);
+#endif
                 }
             }
         }
         else { 
             for (uint16_t i = 0; i < NUM_LEDS; i++)
+#ifdef EXT_STREAM_BUFFER
+                myLamp.writeStreamBuff(bufLeds[i], i);
+#else
                 myLamp.writeDrawBuf(bufLeds[i], i);
+#endif
         }
     }
     clearTask = new Task(TASK_SECOND, TASK_ONCE, Led_Stream::clearBuff, &ts, false, nullptr, []{
@@ -151,13 +163,21 @@ void Led_Stream::fillBuff(const String &str){
                 for (uint8_t y = 0; y < HEIGHT; y++) {
                     uint16_t i = EffectMath::getPixelNumberBuff((WIDTH-1) - x, y, WIDTH, HEIGHT) * 3;
                     CRGB temp = CRGB((uint8_t)str[i], (uint8_t)str[i+1], (uint8_t)str[i+2]);
+#ifdef EXT_STREAM_BUFFER
+                    myLamp.writeStreamBuff(temp, x, y);
+#else
                     myLamp.writeDrawBuf(temp, x, y);
+#endif
                 }
             }
         }
         for (size_t i = 0; i < (str.length() < NUM_LEDS*3 ? str.length() : NUM_LEDS*3); i+=3) {
             CRGB temp = CRGB((uint8_t)str[i], (uint8_t)str[i+1], (uint8_t)str[i+2]);
+#ifdef EXT_STREAM_BUFFER
+            myLamp.writeStreamBuff(temp, i/3);
+#else
             myLamp.writeDrawBuf(temp, i/3);
+#endif
         }
     }
     clearTask = new Task(TASK_SECOND, TASK_ONCE, Led_Stream::clearBuff, &ts, false, nullptr, []{
@@ -189,11 +209,14 @@ Led_Stream::~Led_Stream(){
     }
     if (myLamp.isDirect())
         myLamp.effectsTimer(T_ENABLE);
+#ifdef EXT_STREAM_BUFFER
+    else 
+        myLamp.setStreamBuff(false);
+#endif
 }
 
 
 void Led_Stream::clearStreamObj(){
-    LOG(printf_P, PSTR("Clear stram \n"));
     if (ledStream) {
         delete ledStream;
         ledStream = nullptr;
@@ -212,7 +235,6 @@ void Led_Stream::clearBuff(){
 }
 
 void Led_Stream::newStreamObj(STREAM_TYPE type){
-    LOG(printf_P, PSTR("Create stream \n"));
     clearStreamObj();
     ledStream = new Led_Stream(type);
 }

@@ -444,8 +444,9 @@ static const char TINTF_0E2[] PROGMEM = "Streaming";
 static const char TINTF_0E3[] PROGMEM = "Mode";
 static const char TINTF_0E4[] PROGMEM = "E1.31";
 static const char TINTF_0E5[] PROGMEM = "SoulMate";
-static const char TINTF_0E6[] PROGMEM = "Off Effects";
+static const char TINTF_0E6[] PROGMEM = "Block Effect";
 static const char TINTF_0E7[] PROGMEM = "Mapping";
+static const char TINTF_0E8[] PROGMEM = "Starting Universe";
 
 static const char NY_MDG_STRING1[] PROGMEM = "Until the new year is left %d %s";
 static const char NY_MDG_STRING2[] PROGMEM = "Happy new %d year!";
