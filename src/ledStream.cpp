@@ -2,7 +2,7 @@
 #ifdef USE_STREAMING
 
 Led_Stream *ledStream = nullptr;
-Task *clearTask = nullptr;
+// Task *clearTask = nullptr;           //  таска очищала буферы, если терялся коннект, переделал на handle(), который закинул в loop()
 
 uint16_t Led_Stream::getPixelNum(uint16_t x, uint16_t y) {
   return (HEIGHT-1-y) * WIDTH + x;
@@ -95,8 +95,8 @@ Led_Stream::Led_Stream(const STREAM_TYPE type){
 
 
 void Led_Stream::fillBuff() {
-    if (clearTask) 
-        clearTask->cancel();
+    // if (clearTask) 
+    //     clearTask->cancel();
     if (myLamp.isDirect()){
         if (myLamp.isMapping()){
             for(uint8_t x = 0; x < WIDTH; x++) {
@@ -131,16 +131,18 @@ void Led_Stream::fillBuff() {
 #endif
         }
     }
-    clearTask = new Task(TASK_SECOND, TASK_ONCE, Led_Stream::clearBuff, &ts, false, nullptr, []{
-            TASK_RECYCLE;
-            clearTask = nullptr;
-        });
-    clearTask->enableDelayed();
+    lastFrameTimer = millis();
+    isConnected = true;
+    // clearTask = new Task(TASK_SECOND, TASK_ONCE, Led_Stream::clearBuff, &ts, false, nullptr, []{
+    //         TASK_RECYCLE;
+    //         clearTask = nullptr;
+    //     });
+    // clearTask->enableDelayed();
 }
 
 void Led_Stream::fillBuff(const String &str){
-    if (clearTask) 
-        clearTask->cancel();
+    // if (clearTask) 
+    //     clearTask->cancel();
     if (myLamp.isDirect()){
         if (myLamp.isMapping()) {
             for(uint8_t x = 0; x < WIDTH; x++) {
@@ -180,21 +182,14 @@ void Led_Stream::fillBuff(const String &str){
 #endif
         }
     }
-    clearTask = new Task(TASK_SECOND, TASK_ONCE, Led_Stream::clearBuff, &ts, false, nullptr, []{
-            TASK_RECYCLE;
-            clearTask = nullptr;
-        });
-    clearTask->enableDelayed();
+    lastFrameTimer = millis();
+    isConnected = true;
+//     clearTask = new Task(TASK_SECOND, TASK_ONCE, Led_Stream::clearBuff, &ts, false, nullptr, []{
+//             TASK_RECYCLE;
+//             clearTask = nullptr;
+//         });
+//     clearTask->enableDelayed();
 }
-
-    //   // if (uni == (universeCount)) {
-    //   for(uint8_t x = 0; x < WIDTH; x++) {
-    //     for (uint8_t y = 0; y < HEIGHT; y++) {
-    //       EffectMath::getPixel(x, y) = bufLeds[getPixelNum(x, y)];
-    //     }
-    //   }
-    // // }
-// }
 
 Led_Stream::~Led_Stream(){
     LOG(printf_P, PSTR("Stream OFF, Type %d \n"), streamType);
@@ -229,8 +224,13 @@ void Led_Stream::clearBuff(){
             FastLED.clear();
             FastLED.show();
         }
-        else
+        else {
+#ifdef EXT_STREAM_BUFFER
+            myLamp.clearStreamBuff();
+#else
             myLamp.clearDrawBuf();
+#endif
+        }
     }
 }
 

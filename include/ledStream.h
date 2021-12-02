@@ -13,6 +13,7 @@ class Led_Stream{
 public:
 Led_Stream(const STREAM_TYPE type);
 ~Led_Stream();
+void handle() {if (isConnected && millis() - lastFrameTimer > TASK_SECOND) { clearBuff(); isConnected = false;}}
 static void clearStreamObj();
 static void clearBuff();
 static void newStreamObj(STREAM_TYPE type);
@@ -47,6 +48,8 @@ private:
     // void handleE131Packet(e131_packet_t* p, const IPAddress &clientIP, bool isArtnet);
     const uint8_t lineQt = (512U / (WIDTH * 3));
     const uint8_t universeCount = ceil((float)HEIGHT / lineQt);
+    uint32_t lastFrameTimer = 0;
+    bool isConnected = false; 
 };
 
 extern Led_Stream *ledStream;

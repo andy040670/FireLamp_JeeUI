@@ -2639,9 +2639,10 @@ void set_streaming_drirect(Interface *interf, JsonObject *data){
         if (flag) {
 #ifdef EXT_STREAM_BUFFER
             myLamp.setStreamBuff(false);
+#else
+            myLamp.clearDrawBuf();
 #endif
             myLamp.effectsTimer(T_DISABLE);
-            myLamp.clearDrawBuf();
             FastLED.clear();
             FastLED.show();
         }
@@ -2649,6 +2650,9 @@ void set_streaming_drirect(Interface *interf, JsonObject *data){
             myLamp.effectsTimer(T_ENABLE);
 #ifdef EXT_STREAM_BUFFER
             myLamp.setStreamBuff(true);
+#else
+            if (!myLamp.isDrawOn())             // TODO: переделать с запоминанием старого стейта
+                myLamp.setDrawBuff(true);
 #endif
         }
     }

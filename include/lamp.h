@@ -399,7 +399,6 @@ public:
     void setMapping(bool flag) {flags.isMapping = flag;}
 #ifdef EXT_STREAM_BUFFER
     void setStreamBuff(bool flag) {
-        // flags.isDraw=flag;
         if(!flag){
             if (!streambuff.empty()) {
                 streambuff.resize(0);
@@ -413,6 +412,7 @@ public:
     void writeStreamBuff(CRGB &color, uint16_t x, uint16_t y) { if(!streambuff.empty()) { streambuff[getPixelNumber(x,y)]=color; } }
     void writeStreamBuff(CRGB &color, uint16_t num) { if(!streambuff.empty()) { streambuff[num]=color; } }
     void fillStreamBuff(CRGB &color) { for(uint16_t i=0; i<streambuff.size(); i++) streambuff[i]=color; }
+    void clearStreamBuff() { for(uint16_t i=0; i<streambuff.size(); i++) streambuff[i]=CRGB::Black; }
 #endif
 #endif
     bool isONMP3() {return flags.isOnMP3;}
