@@ -35,13 +35,10 @@ JeeUI2 lib used under MIT License Copyright (c) 2019 Marsel Akhkamov
    <https://www.gnu.org/licenses/>.)
 */
 
-#ifndef _EVENTS_H
-#define _EVENTS_H
-
-#include "ArduinoJson.h"
-#include "timeProcessor.h"
+#pragma once
 #include "misc.h"
-#include "LList.h"
+#include "timeProcessor.h"
+#include "ArduinoJson.h"
 
 #define EVENT_TSTAMP_LENGTH 17  // для строки вида "YYYY-MM-DDThh:mm"
 
@@ -50,7 +47,7 @@ typedef enum _EVENT_TYPE {
     ON                      = 1,
     OFF                     = 2,
     ALARM                   = 3,
-    DEMO                    = 4,
+    DEMO_ON                 = 4,
     LAMP_CONFIG_LOAD        = 5,
     EFF_CONFIG_LOAD         = 6,
     EVENTS_CONFIG_LOAD      = 7,
@@ -63,26 +60,12 @@ typedef enum _EVENT_TYPE {
     AUX_TOGGLE              = 13,
 #endif
     SET_EFFECT              = 14,
-    SET_WARNING             = 15,
-    SET_GLOBAL_BRIGHT       = 16,
-    SET_WHITE_HI            = 17,
-    SET_WHITE_LO            = 18,
-#ifdef ESP_USE_BUTTON
-    BUTTONS_CONFIG_LOAD     = 19
-#endif
+    SET_WARNING             = 15
 } EVENT_TYPE;
 
 static const char T_EVENT_DAYS[] PROGMEM = "ПНВТСРЧТПТСБВС";
-class EVENT_MANAGER;
-class DEV_EVENT {
-    friend EVENT_MANAGER;
-private:
-    uint8_t repeat;
-    uint8_t stopat;
-    time_t unixtime;    // timestamp для события в локальной часовой зоне
-    EVENT_TYPE event;
-    String message;
-public:
+
+struct EVENT {
     union {
         struct {
             bool isEnabled:1;
@@ -96,24 +79,18 @@ public:
         };
         uint8_t raw_data;
     };
-    const EVENT_TYPE getEvent() {return event;}
-    void setEvent(EVENT_TYPE _event) {event = _event;}
-
-    const uint8_t getRepeat() {return repeat;}
-    void setRepeat(uint8_t _repeat) {repeat = _repeat;}
-    
-    const uint8_t getStopat() {return stopat;}
-    void setStopat(uint8_t _stopat) {stopat = _stopat;}
-    
-    void setUnixtime(time_t _unixtime) {unixtime = _unixtime;}
-    const String&getMessage() {return message;}
-    void setMessage(const String& _message) {message = _message;}
-    DEV_EVENT(const DEV_EVENT &event) {this->raw_data=event.raw_data; this->repeat=event.repeat; this->stopat=event.stopat; this->unixtime=event.unixtime; this->event=event.event; this->message=event.message;}
-    DEV_EVENT() {this->raw_data=0; this->isEnabled=true; this->repeat=0; this->stopat=0; this->unixtime=0; this->event=_EVENT_TYPE::ON; this->message = "";}
-    const bool operator==(const DEV_EVENT&event) {return (this->raw_data==event.raw_data && this->event==event.event && this->unixtime==event.unixtime);}
+    uint8_t repeat;
+    uint8_t stopat;
+    time_t unixtime;    // timestamp для события в локальной часовой зоне
+    EVENT_TYPE event;
+    char *message = nullptr;
+    EVENT *next = nullptr;
+    EVENT(const EVENT &event) {this->raw_data=event.raw_data; this->repeat=event.repeat; this->stopat=event.stopat; this->unixtime=event.unixtime; this->event=event.event; this->message=event.message; this->next = nullptr;}
+    EVENT() {this->raw_data=0; this->isEnabled=true; this->repeat=0; this->stopat=0; this->unixtime=0; this->event=_EVENT_TYPE::ON; this->message=nullptr; this->next = nullptr;}
+    const bool operator==(const EVENT&event) {return (this->raw_data==event.raw_data && this->event==event.event && this->unixtime==event.unixtime);}
 
     String getDateTime() {
-        String tmpBuf;
+        String tmpBuf((char *)0);
         TimeProcessor::getDateTimeString(tmpBuf, unixtime);
         return tmpBuf;
     }
@@ -138,8 +115,8 @@ public:
         case EVENT_TYPE::ALARM:
             buffer.concat(F("ALARM"));
             break;
-        case EVENT_TYPE::DEMO:
-            buffer.concat(F("DEMO"));
+        case EVENT_TYPE::DEMO_ON:
+            buffer.concat(F("DEMO ON"));
             break;
         case EVENT_TYPE::LAMP_CONFIG_LOAD:
             buffer.concat(F("LMP_GFG"));
@@ -147,11 +124,6 @@ public:
         case EVENT_TYPE::EFF_CONFIG_LOAD:
             buffer.concat(F("EFF_GFG"));
             break;
-#ifdef ESP_USE_BUTTON
-        case EVENT_TYPE::BUTTONS_CONFIG_LOAD:
-            buffer.concat(F("BUT_GFG"));
-            break;
-#endif
         case EVENT_TYPE::EVENTS_CONFIG_LOAD:
             buffer.concat(F("EVT_GFG"));
             break;
@@ -181,15 +153,6 @@ public:
         case EVENT_TYPE::SET_WARNING:
             buffer.concat(F("WARNING"));
             break;
-        case EVENT_TYPE::SET_GLOBAL_BRIGHT:
-            buffer.concat(F("GLOBAL BR"));
-            break;
-        case EVENT_TYPE::SET_WHITE_HI:
-            buffer.concat(F("WHITE HI"));
-            break;
-        case EVENT_TYPE::SET_WHITE_LO:
-            buffer.concat(F("WHITE LO"));
-            break;
         default:
             break;
         }
@@ -210,14 +173,40 @@ public:
             t_raw_data >>= 1;
         }
 
-        if(message){
-            buffer.concat(F(","));
-            if(message.length()>5){
-                buffer.concat(message.substring(0,4)+"...");
-            } else {
-                buffer.concat(message);
+        if(message && message[0]){     // время тут никто и не копирует, а усекается текст
+            uint8_t UTFNsymbols = 0; // кол-во симоволов UTF-8 уже скопированных
+            uint8_t i = 0;
+            char tmpBuf[EVENT_TSTAMP_LENGTH];
+            while(UTFNsymbols < 5 && message[i] && i < sizeof(tmpBuf)-4)
+            {
+                if(message[i]&0x80){
+                    // это префикс многобайтного
+                    uint8_t nbS = 0; uint8_t chk = message[i];
+                    //LOG(printf_P,PSTR("nbS=%d,%x\n"),nbS,chk);
+                    while(chk&0x80) {
+                        chk=chk<<1; // проверяем сколько символов нужно копировать
+                        nbS++;
+                    }
+                    //LOG(printf_P,PSTR("nbS=%d\n"),nbS);
+                    while(nbS){
+                        tmpBuf[i]=message[i];
+                        nbS--; i++;
+                    }
+                    //LOG(printf_P,PSTR("UTF8 lastchar=%d, UTFNsymbols=%d\n"),i, UTFNsymbols);
+                    UTFNsymbols++; // один UTF-8 скопировали
+                } else {
+                    tmpBuf[i]=message[i];
+                    //LOG(printf_P,PSTR("ASCII lastchar=%d, UTFNsymbols=%d\n"),i, UTFNsymbols);
+                    UTFNsymbols++; // один UTF-8 скопировали
+                    i++;
+                }
             }
+            strcpy_P(tmpBuf+i,PSTR("..."));
+            //LOG(printf_P,PSTR("lastchar=%d, UTFNsymbols=%d, message=%s\n"),i, UTFNsymbols,tmpBuf);
+            buffer.concat(F(","));
+            buffer.concat(tmpBuf);
         }
+                
         return buffer;
     }
 };
@@ -226,11 +215,10 @@ class EVENT_MANAGER {
 private:
     EVENT_MANAGER(const EVENT_MANAGER&);  // noncopyable
     EVENT_MANAGER& operator=(const EVENT_MANAGER&);  // noncopyable
-    LList<DEV_EVENT *> *events = nullptr;
+    EVENT *root = nullptr;
+    void(*cb_func)(const EVENT *) = nullptr; // функция обратного вызова
 
-    void(*cb_func)(DEV_EVENT *) = nullptr; // функция обратного вызова
-
-    void check_event(DEV_EVENT *event);
+    void check_event(EVENT *event);
     /**
      *  метод загружает и пробует десериализовать джейсон из файла в предоставленный документ,
      *  возвращает true если загрузка и десериализация прошла успешно
@@ -241,25 +229,26 @@ private:
     void clear_events();
 
 public:
-    EVENT_MANAGER() { events = new LList<DEV_EVENT *>; }
-    ~EVENT_MANAGER() { if(events) delete events; }
+    EVENT_MANAGER() {}
+    ~EVENT_MANAGER() { EVENT *next=root; EVENT *tmp_next=root; while(next!=nullptr) { tmp_next=next->next; if(next->message) {free(next->message);} delete next; next=tmp_next;} }
 
-    LList<DEV_EVENT *> *getEvents() {return events;}
-    
-    DEV_EVENT *addEvent(const DEV_EVENT&event);
-    void delEvent(const DEV_EVENT&event);
-    bool isEnumerated(const DEV_EVENT&event); // проверка того что эвент в списке
+    EVENT *addEvent(const EVENT&event);
+    void delEvent(const EVENT&event);
+    bool isEnumerated(const EVENT&event); // проверка того что эвент в списке
 
-    void setEventCallback(void(*func)(DEV_EVENT *))
+    void setEventCallback(void(*func)(const EVENT *))
     {
         cb_func = func;
     }
     
+    EVENT *getNextEvent(EVENT *next=nullptr)
+    {
+        if(next==nullptr) return root; else return next->next;
+    }
+
     void events_handle();
     
     // конфиги событий
     void loadConfig(const char *cfg = nullptr);
     void saveConfig(const char *cfg = nullptr);
 };
-
-#endif
