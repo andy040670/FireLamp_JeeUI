@@ -1,4 +1,4 @@
-﻿/*
+/*
 Copyright © 2020 Dmytro Korniienko (kDn)
 JeeUI2 lib used under MIT License Copyright (c) 2019 Marsel Akhkamov
 
@@ -62,7 +62,7 @@ static const char TEFF_013[] PROGMEM = "Fire Lamp";
 static const char TEFF_014[] PROGMEM = "Paintball";
 static const char TEFF_015[] PROGMEM = "Noise 3D effects";
 static const char TEFF_016[] PROGMEM = "Cells and other";
-static const char TEFF_017[] PROGMEM = "Geometric Waltz";
+static const char TEFF_017[] PROGMEM = "Puzzles";
 static const char TEFF_018[] PROGMEM = "Tixy.Land";
 static const char TEFF_019[] PROGMEM = "LDIRKO.Land";
 static const char TEFF_020[] PROGMEM = "Oscillator";
@@ -304,7 +304,7 @@ static const char TINTF_05E[] PROGMEM = "Actively";
 static const char TINTF_05F[] PROGMEM = "Event type";
 static const char TINTF_060[] PROGMEM = "Lamp On";
 static const char TINTF_061[] PROGMEM = "Lamp Off";
-static const char TINTF_062[] PROGMEM = "Enable DEMO";
+static const char TINTF_062[] PROGMEM = "Mode DEMO";
 static const char TINTF_063[] PROGMEM = "Alarm";
 static const char TINTF_064[] PROGMEM = "Upload lamp configuration";
 static const char TINTF_065[] PROGMEM = "Loading effects configurations";
@@ -447,6 +447,9 @@ static const char TINTF_0E5[] PROGMEM = "SoulMate";
 static const char TINTF_0E6[] PROGMEM = "Block Effect";
 static const char TINTF_0E7[] PROGMEM = "Mapping";
 static const char TINTF_0E8[] PROGMEM = "Starting Universe";
+static const char TINTF_0E9[] PROGMEM = "Loading buttons configurations";
+static const char TINTF_0EA[] PROGMEM = "Night light";
+static const char TINTF_0EB[] PROGMEM = "Bright lamp";
 
 static const char NY_MDG_STRING1[] PROGMEM = "Until the new year is left %d %s";
 static const char NY_MDG_STRING2[] PROGMEM = "Happy new %d year!";
