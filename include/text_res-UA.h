@@ -1,4 +1,4 @@
-﻿/*
+/*
 Copyright © 2020 Dmytro Korniienko (kDn)
 JeeUI2 lib used under MIT License Copyright (c) 2019 Marsel Akhkamov
 
@@ -62,7 +62,7 @@ static const char TEFF_013[] PROGMEM = "Вогняна Лампа";
 static const char TEFF_014[] PROGMEM = "Пейнтбол";
 static const char TEFF_015[] PROGMEM = "Шум 3D";
 static const char TEFF_016[] PROGMEM = "Клітинки-Ялинки";
-static const char TEFF_017[] PROGMEM = "Геометричний Вальс";
+static const char TEFF_017[] PROGMEM = "П'ятнашки";
 static const char TEFF_018[] PROGMEM = "Тіксі Ленд";
 static const char TEFF_019[] PROGMEM = "LDIRKO Ленд";
 static const char TEFF_020[] PROGMEM = "Осцилятор";
@@ -304,7 +304,7 @@ static const char TINTF_05E[] PROGMEM = "Активно";
 static const char TINTF_05F[] PROGMEM = "Тип події";
 static const char TINTF_060[] PROGMEM = "Увімкнути лампу";
 static const char TINTF_061[] PROGMEM = "Вимкнути лампу";
-static const char TINTF_062[] PROGMEM = "Увімкнути DEMO";
+static const char TINTF_062[] PROGMEM = "Режим DEMO";
 static const char TINTF_063[] PROGMEM = "Будильник";
 static const char TINTF_064[] PROGMEM = "Завантажити конфіг лампи";
 static const char TINTF_065[] PROGMEM = "Завантажити конфіг ефектів";
@@ -447,6 +447,9 @@ static const char TINTF_0E5[] PROGMEM = "SoulMate";
 static const char TINTF_0E6[] PROGMEM = "Блок.Ефект";
 static const char TINTF_0E7[] PROGMEM = "Розмітка";
 static const char TINTF_0E8[] PROGMEM = "Початковий Universe";
+static const char TINTF_0E9[] PROGMEM = "Завантажити конфіг кнопок";
+static const char TINTF_0EA[] PROGMEM = "Нічник";
+static const char TINTF_0EB[] PROGMEM = "Світильник";
 
 static const char NY_MDG_STRING1[] PROGMEM = "До нового року залишилось %d %s";
 static const char NY_MDG_STRING2[] PROGMEM = "З новим %d роком!";
